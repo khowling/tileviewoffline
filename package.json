@@ -1,0 +1,39 @@
+{
+  "name": "unilever-ami",
+  "version": "0.0.1",
+  "description": "AMI using ES6 & webpack.",
+  "config": {
+    "buildDir": "./build",
+    "buildDirTests": "./build_tests",
+    "devHost": "localhost",
+    "devPort": 8000
+  },
+  "scripts": {
+    "start": "NODE_ENV=development node dev-server ./webpack.config",
+    "clean": "rimraf $npm_package_config_buildDir && mkdir $npm_package_config_buildDir",
+    "build": "NODE_ENV=production npm run webpack",
+    "webpack": "webpack --colors --progress --config ./webpack.config.js"
+  },
+  "devDependencies": {
+    "react": "*",
+    "babel-core": "*",
+    "babel-loader": "*",
+    "babel-runtime": "*",
+    "css-loader": "^0.15.1",
+    "extract-text-webpack-plugin": "^0.8.2",
+    "file-loader": "*",
+    "html-loader": "*",
+    "lodash": "*",
+    "node-sass": "^3.2.0",
+    "opn": "*",
+    "postcss-loader": "^0.5.0",
+    "progressbar.js": "^0.8.1",
+    "react-hot-loader": "*",
+    "sass-loader": "^1.0.2",
+    "style-loader": "*",
+    "template-html-loader": "*",
+    "transducers.js": "^0.3.2",
+    "webpack": "*",
+    "webpack-dev-server": "*"
+  }
+}

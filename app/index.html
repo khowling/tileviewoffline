@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width" />
+  <title><%= title %></title>
+  <% if (true || debug === 'false') { %>
+  <link type="text/css" rel="stylesheet" media="all" href="css/app.<%= version %>.css" />
+  <% } %>
+
+  <link href="bower_components/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet" type="text/css" />
+  <link href="bower_components/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css" />
+  <!-- Ionicons -->
+  <link href="bower_components/ionicons/css/ionicons.min.css" rel="stylesheet" type="text/css" />
+  <!-- Morris chart -->
+  <link href="bower_components/adminlte/css/morris/morris.css" rel="stylesheet" type="text/css" />
+  <!-- jvectormap -->
+  <link href="bower_components/adminlte/css/jvectormap/jquery-jvectormap-1.2.2.css" rel="stylesheet" type="text/css" />
+  <!-- Date Picker -->
+  <link href="bower_components/adminlte/css/datepicker/datepicker3.css" rel="stylesheet" type="text/css" />
+  <!-- Daterange picker -->
+  <link href="bower_components/adminlte/css/daterangepicker/daterangepicker-bs3.css" rel="stylesheet" type="text/css" />
+  <!-- bootstrap wysihtml5 - text editor -->
+  <link href="bower_components/adminlte/css/bootstrap-wysihtml5/bootstrap3-wysihtml5.min.css" rel="stylesheet" type="text/css" />
+  <!-- Theme style -->
+  <link href="bower_components/adminlte/css/AdminLTE.css" rel="stylesheet" type="text/css" />
+
+
+  <script>
+        var debug_session = <%= AccessToken1 %> + "!" + <%= AccessToken2 %>;
+        var _sfdccreds = {
+            host: 'https://eu5.salesforce.com',
+            sfdc_api_version: '/services/data/v32.0',
+            session_api: '{!$Api.Session_ID}'
+        };
+        if (_sfdccreds.session_api.indexOf("Api.Session_ID") > -1) {
+            console.log ('we are not in a vf page, set debug params');
+            _sfdccreds.session_api = debug_session;
+        }
+  </script>
+
+</head>
+<body>
+  <div id="app"></div>
+
+  <script type="text/javascript" src="cordova.js"></script>
+  <script type="text/javascript" src="cordova_plugins.js"></script>
+
+  <script src="js/app.<%= version %>.js"></script>
+
+  <script src="bower_components/jquery/dist/jquery.min.js"></script>
+  <script src="bower_components/bootstrap/dist/js/bootstrap.min.js" type="text/javascript"></script>
+  <script src="bower_components/jquery-ui/jquery-ui.min.js" type="text/javascript"></script>
+  <!-- Morris.js charts  -->
+  <script src="bower_components/raphael/raphael-min.js"></script>
+  <script src="bower_components/adminlte/js/plugins/morris/morris.min.js" type="text/javascript"></script>
+  <!-- jvectormap -->
+  <script src="bower_components/adminlte/js/plugins/jvectormap/jquery-jvectormap-1.2.2.min.js" type="text/javascript"></script>
+  <script src="bower_components/adminlte/js/plugins/jvectormap/jquery-jvectormap-world-mill-en.js" type="text/javascript"></script>
+  <!-- jQuery Knob Chart -->
+  <script src="bower_components/adminlte/js/plugins/jqueryKnob/jquery.knob.js" type="text/javascript"></script>
+  <!-- daterangepicker -->
+  <script src="bower_components/adminlte/js/plugins/daterangepicker/daterangepicker.js" type="text/javascript"></script>
+  <!-- datepicker -->
+  <script src="bower_components/adminlte/js/plugins/datepicker/bootstrap-datepicker.js" type="text/javascript"></script>
+  <!-- Bootstrap WYSIHTML5 -->
+  <script src="bower_components/adminlte/js/plugins/bootstrap-wysihtml5/bootstrap3-wysihtml5.all.min.js" type="text/javascript"></script>
+
+</body>
+</html>

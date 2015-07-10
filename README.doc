@@ -1,0 +1,5 @@
+React ES6 apps for salesforce
+
+based on https://github.com/badsyntax/react-seed
+
+(until avaiable on npm - extract into node_modules salesforce-design-system)
