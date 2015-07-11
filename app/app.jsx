@@ -9,65 +9,47 @@ import SFData from './service/sfdata.es6';
 import TileList from './components/tiles.jsx';
 import SyncProgress from './components/syncprogress.jsx';
 
-
-class App extends Component {
-
-  constructor () {
-    super();
-    this.factories = {};
-    this.createFactories (TileList);
-
-    this.sfd = new SFData ({
-      host: _sfdccreds.host,
-      access_token: _sfdccreds.session_api},
-      [
-        {
-          sObject: "QuickView__c",
-          primaryField: 'Name',
-          allFields: ["Id", "Name", "Actual__c", "Target__c", "Report__r.Visual_Type__c", "Report__c"],
-          indexSpec:[{"path":"Id","type":"string"},{"path":"Name","type":"string"},{"path":"Report__c","type":"string"}]
-        },
-        {
-          sObject: "Tiles__c",
-          primaryField: 'Name',
-          syncQuery: "select Id, Name, Tile_Colour__c, Tile_Icon__c, parent__c, Function__c, (select name, id, report__r.Id, report__r.Name, report__r.summary__c, report__r.actual__c, report__r.target__c, report__r.difference__c, report__r.Source__c, report__r.Status__c from Associated_Reports__r where report__r.Status__c = 'Published' ) from Tiles__c where Status__c = 'Published' order by Order__c asc",
-          allFields: ["Id", "Name", "Tile_Colour__c", "Tile_Icon__c", "parent__c", "Function__c", "Status__c", "Order__c"],
-          indexSpec:[{"path":"Id","type":"string"},{"path":"Name","type":"string"},{"path":"Status__c","type":"string"},{"path":"Order__c","type":"string"}],
-        }
-      ]);
-
-      this.state = {showSync: true};
-  }
-
-  createFactories (...comps) {
-    for (let mods of comps) {
-      //console.log ('import mods : ' + mods);
-      if (typeof mods === "function" ) {
-          console.log ('creating factory : ' + mods.name);
-          this.factories[mods.name] = React.createFactory(mods);
-      }
+var sfd = new SFData ({
+  host: _sfdccreds.host,
+  access_token: _sfdccreds.session_api},
+  [
+    {
+      sObject: "QuickView__c",
+      primaryField: 'Name',
+      allFields: ["Id", "Name", "Actual__c", "Target__c", "Report__r.Visual_Type__c", "Report__c"],
+      indexSpec:[{"path":"Id","type":"string"},{"path":"Name","type":"string"},{"path":"Report__c","type":"string"}]
+    },
+    {
+      sObject: "Tiles__c",
+      primaryField: 'Name',
+      syncQuery: "select Id, Name, Tile_Colour__c, Tile_Icon__c, Parent__c, Function__c, Status__c, Order__c, (select name, id, report__r.Id, report__r.Name, report__r.summary__c, report__r.actual__c, report__r.target__c, report__r.difference__c, report__r.Source__c, report__r.Status__c from Associated_Reports__r where report__r.Status__c = 'Published' ) from Tiles__c where Status__c = 'Published' order by Order__c asc",
+      allFields: ["Id", "Name", "Tile_Colour__c", "Tile_Icon__c", "Parent__c", "Function__c", "Status__c", "Order__c"],
+      indexSpec:[{"path":"Id","type":"string"},{"path":"Name","type":"string"},{"path":"Status__c","type":"string"},{"path":"Order__c","type":"string"}],
     }
-  }
+  ]);
 
-  componentDidMount() {
-    console.log ('App: add listener for cordova deviceready');
-    document.addEventListener('deviceready', function() {
-      console.log ('got cordova deviceready');
-      this.sfd.cordovaReady(window.cordova);
-      this.state = {showSync: true};
-    });
-  }
+document.getElementById("app").innerHTML =  'waiting for deviceready ' + window.location.href;
+document.addEventListener('deviceready', function() {
+  document.getElementById("app").innerHTML =  'got cordova deviceready';
+  sfd.cordovaReady(window.cordova).then (() => {
+      React.render(
+        <div>
+          <div><br/>Device Ready</div>
+          <SyncProgress sfd={sfd}/>
+          <TileList/>
+        </div>,  document.getElementById('app'));
+  }, (error) => {
+      document.getElementById("app").innerHTML =  'error ' + error;
+  });
+});
 
-  render () {
-    return (
+if (window.location.href.indexOf ('localhost') >0) {
+  sfd.webReady(_sfdccreds).then (() => {
+    React.render(
       <div>
-        { this.state.showSync &&
-          <SyncProgress sfd={this.sfd}/>
-        }
+        <div><br/>Running in localhost {window.location.href}</div>
+        <SyncProgress sfd={sfd}/>
         <TileList/>
-      </div>
-    )
-  }
+      </div>,  document.getElementById('app'));
+  });
 }
-
-React.render(<App/>,  document.getElementById('app'));

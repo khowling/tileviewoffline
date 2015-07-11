@@ -27,7 +27,6 @@
 
 
   <script>
-        var debug_session = <%= AccessToken1 %> + "!" + <%= AccessToken2 %>;
         var _sfdccreds = {
             host: 'https://eu5.salesforce.com',
             sfdc_api_version: '/services/data/v32.0',
@@ -35,7 +34,7 @@
         };
         if (_sfdccreds.session_api.indexOf("Api.Session_ID") > -1) {
             console.log ('we are not in a vf page, set debug params');
-            _sfdccreds.session_api = debug_session;
+            _sfdccreds.session_api = <%= AccessToken1 %> + "!" + <%= AccessToken2 %>;
         }
   </script>
 

@@ -12,11 +12,7 @@ export default class SFData {
     if (instance) {
       throw "SFData() only allow to construct once";
     }
-    this._host = creds.host;
-    this._access_token = creds.access_token;
     this._soups = soups;
-    this._smartStore = new MockStore(this._soups);
-    this._smartSync = new MockSync(this._smartStore, this);
     instance = this;
   }
 
@@ -53,6 +49,8 @@ export default class SFData {
       }, function (fail) {
         progressCallback({progress: -1, msg: "Error: " + fail});
       });
+    }, function (fail) {
+      progressCallback({progress: -1, msg: "Error: " + fail});
     });
   }
 
@@ -61,14 +59,14 @@ export default class SFData {
       this._smartSync.syncDown(
         {type:"soql", query:  soupMeta.syncQuery || SFData._buildSOQL (soupMeta.sObject, soupMeta.allFields)},
         soupMeta.sObject,
-        {mergeMode:"Force.MERGE_MODE_DOWNLOAD.OVERWRITE"},
+        {},
         (syncDownValue) => {
-          if (syncDownValue.success) {
-            resolve(syncDownValue.recordsSynced);
-          } else {
-            reject(syncDownValue.message);
-          }
-        })
+          console.log ('syncDown Val: ' + JSON.stringify(syncDownValue));
+          resolve (syncDownValue);
+        }, (err) => {
+          console.log ('syncDown error: ' + JSON.stringify(err));
+          reject(err);
+        });
     });
     return promise;
   }
@@ -77,7 +75,7 @@ export default class SFData {
     var promise = new Promise( (resolve, reject) => {
 
       let qspec;
-      let smartqsl;
+      let smartqsl = false;
 
       let soup = this._soups.find (s => s.sObject === obj ),
           smartstore = this._smartStore;
@@ -86,15 +84,15 @@ export default class SFData {
 
       if (!where || where.length == 0) {
         console.log ('offline search running buildAllQuerySpec : ' + soup.primaryField);
-        qspec = smartstore.buildAllQuerySpec (soup.primaryField, null, 100);
+        qspec = smartstore.buildAllQuerySpec (soup.primaryField, 'ascending', 400);
       }
       else if (where.length == 1 && where[0].equals) {
         console.log ('offline search running buildExactQuerySpec : ' + where[0].field + ' = ' + where[0].equals);
-        qspec = smartstore.buildExactQuerySpec (where[0].field, where[0].equals, null, 100);
+        qspec = smartstore.buildExactQuerySpec (where[0].field, where[0].equals, 'ascending', 400);
       }
       else if (where.length == 1 && where[0].like) {
         console.log ('offline search running buildLikeQuerySpec : ' + where[0].field + ' = ' + where[0].equals);
-        qspec = smartstore.buildLikeQuerySpec (where[0].field, where[0].like + "%", null, 100);
+        qspec = smartstore.buildLikeQuerySpec (where[0].field, where[0].like + "%", 'ascending', 400);
       }
       else {
         // SmartQuery requires Everyfield to be indexed & ugly post processing ! the others do not!
@@ -104,7 +102,7 @@ export default class SFData {
       }
 
       var success = function (val) {
-        //console.log ('querySoup got data ' + JSON.stringify(val));
+        console.log ('querySoup success got data ' + JSON.stringify(val));
         if (smartqsl) { // using smartSQL, need to do some reconstruction UGH!!!
           var results = [];
           for (var rrecidx in val.currentPageOrderedEntries) {
@@ -127,10 +125,10 @@ export default class SFData {
       }
 
       if (smartqsl) {
-        //console.log ('queryLocal() runSmartQuery ' + qspec);
+        console.log ('queryLocal() runSmartQuery ' + qspec);
         smartstore.runSmartQuery(qspec, success, error);
       } else {
-        //console.log ('queryLocal() querySoup ' + qspec);
+        console.log ('queryLocal() querySoup: ' + soup.sObject + ' : ' + JSON.stringify(qspec));
         smartstore.querySoup(soup.sObject, qspec, success, error);
       }
 
@@ -153,59 +151,73 @@ export default class SFData {
             resolve(JSON.parse(this.response).records);
           } else {
             // Performs the function "reject" when this.status is different than 200
-            reject(this.statusText);
+            reject("Response Error:" + this.statusText);
           }
         };
-        client.onerror = function () {
-          reject(this.statusText);
+        client.onerror = function (e) {
+          reject("Network Error: " + this.statusText);
         };
       });
       return promise;
   }
 
   cordovaReady (cordova) {
-    console.log ('running cordovaReady');
+    return new Promise( (resolve, reject) => {
+      console.log ('running cordovaReady');
 
-    this.cordova = cordova;
-    //_sfdcoauth = cordova.require("com.salesforce.plugin.oauth");
-    this._smartStore = cordova.require("com.salesforce.plugin.smartstore");
-    this._bootstrap = cordova.require("com.salesforce.util.bootstrap");
-    this._smartSync = cordova.require("com.salesforce.plugin.smartsync");
+      try {
+        this.cordova = cordova;
+        this._oauth = cordova.require("com.salesforce.plugin.oauth");
+        this._smartStore = cordova.require("com.salesforce.plugin.smartstore");
+        this._bootstrap = cordova.require("com.salesforce.util.bootstrap");
 
-    this.isOnline = _bootstrap.deviceIsOnline();
-    /*
-    document.addEventListener("online", function() {
-    	console.log ("online addEventListener");
-    	_setOnline (true, true);  }, false);
-    document.addEventListener("offline", function() {
-    	console.log ("offline addEventListener");
-    	_setOnline ( false, true);  }, false);
-    */
+        this._smartSync = new MockSync(this._smartStore, this);
+    //  this._smartSync = cordova.require("com.salesforce.plugin.smartsync");
 
-    var promise = new Promise( (resolve, reject) => {
-    this._smartStore.registerSoup(this._soups[0].sObject, this._soups[0].indexSpec,
-      (success) => {
-        this._smartStore.registerSoup(this._soups[1].sObject, this._soups[1].indexSpec,
+      //  this.isOnline = this._bootstrap.deviceIsOnline();
+
+        /*
+        document.addEventListener("online", function() {
+        	console.log ("online addEventListener");
+        	_setOnline (true, true);  }, false);
+        document.addEventListener("offline", function() {
+        	console.log ("offline addEventListener");
+        	_setOnline ( false, true);  }, false);
+        */
+
+        this._smartStore.registerSoup(this._soups[0].sObject, this._soups[0].indexSpec,
           (success) => {
-            resolve();
+            console.log ('registerSoup success: ' + this._soups[0].sObject);
+            this._smartStore.registerSoup(this._soups[1].sObject, this._soups[1].indexSpec,
+              (success) => {
+                console.log ('registerSoup success: ' + this._soups[1].sObject);
+                this._oauth.getAuthCredentials((JsonCredentials) => {
+                    console.log ('JsonCredentials: ' + JSON.stringify(JsonCredentials));
+                    this._host = JsonCredentials.instanceUrl;
+                    this._access_token = JsonCredentials.accessToken;
+                    resolve();
+                  }, (authError) => {
+                    reject(authError);
+                  });
+              }, (error) => {
+                reject(error);
+              });
           }, (error) => {
             reject(error);
           });
-      }, (error) => {
-        reject(error);
-      });
+      } catch (e) {
+        reject (e);
+      }
     });
-    return promis;
+  }
 
-    /*
-    setupOauthCreds(_sfdcoauth).then (function () {
-    	console.log ('calling registerSoups');
-    	registerSoups (_smartstore).then ( function () {
-    		console.log  ('done, resolve cordova init');
-    		navigator.splashscreen.hide();
-    		resolveCordova (cordova);
-    	})
+  webReady(creds) {
+    return new Promise( (resolve, reject) => {
+      this._host = creds.host;
+      this._access_token = creds.session_api;
+      this._smartStore = new MockStore(this._soups);
+      this._smartSync = new MockSync(this._smartStore, this);
+      resolve();
     });
-    */
   }
 }

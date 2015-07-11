@@ -247,15 +247,15 @@ export default class TileList extends Component {
              }
          }
     }
-    // The statics object allows you to define static methods that can be called on the component class
-    componentDidMount() {
-        console.log ('TileList componentDidMount : ');
-        var self = this,
-            sf = SFData.instance;
-        //var qsttr = "select Id, Name, Tile_Colour__c, Tile_Icon__c, parent__c, Function__c, (select name, id, report__r.Id, report__r.Name, report__r.summary__c, report__r.actual__c, report__r.target__c, report__r.difference__c, report__r.Source__c, report__r.Status__c from Associated_Reports__r where report__r.Status__c = 'Published' ) from Tiles__c where Status__c = 'Published' order by Order__c asc",
-        sf.queryLocal ('Tiles__c', ['Id', 'Name', 'Tile_Colour__c', 'Tile_Icon__c', 'parent__c', 'Function__c', 'Status__c', 'Order__c'], [{field: 'Status__c', equals: 'Published'}]).then (
+
+    _loadTileData() {
+      var sf = SFData.instance;
+      //var qsttr = "select Id, Name, Tile_Colour__c, Tile_Icon__c, parent__c, Function__c, (select name, id, report__r.Id, report__r.Name, report__r.summary__c, report__r.actual__c, report__r.target__c, report__r.difference__c, report__r.Source__c, report__r.Status__c from Associated_Reports__r where report__r.Status__c = 'Published' ) from Tiles__c where Status__c = 'Published' order by Order__c asc",
+      // [{field: 'Status__c', equals: 'Published'}]
+      return new Promise( (resolve, reject) => {
+        sf.queryLocal ('Tiles__c').then (
           function (value) {
-            //console.log ('value : ' + JSON.stringify(value));
+            console.log ('queryLocal success value : ' + JSON.stringify(value));
             var res = null;
             do {
                 console.log ('calling rollup with : ' + JSON.stringify (res));
@@ -278,13 +278,22 @@ export default class TileList extends Component {
                     return calcParent;
                 })(res, value);
             } while (Object.keys(res).length >0)
-            self.setState({  loading: false, tiles: value});
-
+            resolve(value);
           }, function (reason) {
-            console.log ('reason : ' + JSON.stringify(reason));
+            reject (JSON.stringify(reason));
           }
         );
+      });
+    }
+    // The statics object allows you to define static methods that can be called on the component class
+    componentDidMount() {
+        console.log ('TileList componentDidMount');
 
+        this._loadTileData().then((value) => {
+          this.setState({  loading: false, tiles: value});
+        }, (err) => {
+            console.log ('queryLocal error reason : ' + err);
+        })
     }
 
     handleNavClick (cflt) {
@@ -294,6 +303,12 @@ export default class TileList extends Component {
         console.log ('TileList handleNavClick: ' + cflt + ', breadcrumbs ['+ cbc +']');
         if  (cflt == null) {
             new_state.breadcrumbs = [];
+            this._loadTileData().then((value) => {
+              new_state.tiles = value;
+              this.setState(new_state);
+            }, (err) => {
+                console.log ('queryLocal error reason : ' + err);
+            })
         } else {
             var foundit = false,
                 inhistory = seq(cbc, filter(function(x) {
@@ -311,9 +326,9 @@ export default class TileList extends Component {
                     ))[0]
                 new_state.breadcrumbs = this.state.breadcrumbs.concat({id: cflt, name: newname});
             }
+            console.log ('TileList handleNavClick, setState : ' + JSON.stringify(new_state));
+            this.setState(new_state);
         }
-        console.log ('TileList handleNavClick, setState : ' + JSON.stringify(new_state));
-        this.setState(new_state);
     }
 
     selectFunction (e) {
