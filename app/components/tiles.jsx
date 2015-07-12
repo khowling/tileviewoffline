@@ -182,7 +182,7 @@ class Tile extends Component {
     // This component doesn't hold any state - it simply transforms
     // whatever was passed as attributes into HTML that represents a picture.
     setFilter (id) {
-
+      //onClick={this.setFilter.bind(this, tdata.Id)}
         // When the component is clicked, trigger the onClick handler that
         // was passed as an attribute when it was constructed:
         this.props.onTileClick(id);
@@ -195,7 +195,7 @@ class Tile extends Component {
 
         return (
             <div className="col-xs-12 col-sm-4 col-md-3 col-lg-2">
-                <a href="#" onClick={this.setFilter.bind(this, tdata.Id)} className={boxclass}>
+                <a href={"#TileList?cflt="+tdata.Id}  className={boxclass}>
                     <div className="inner">
                         <h3>  {tdata.tcnt}</h3>
                         <p>{tdata.Name}</p>
@@ -218,8 +218,6 @@ export default class TileList extends Component {
       super();
       console.log ('TileList constructor');
       this.state =  { breadcrumbs: [], tiles: [], ass_reports: [], loading: false, filter: null, funct: 'All' };
-
-      this.handleNavClick = this.handleNavClick.bind(this);
     }
 
     componentWillReceiveProps (nextProps) {
@@ -277,62 +275,32 @@ export default class TileList extends Component {
     }
 
     componentDidMount() {
-      let sf = SFData.instance;
+      let sf = SFData.instance,
+          level = this.props.cflt || 'TOP',
+          newState = {};
+
       console.log ('TileList componentDidMount ()');
-      sf.queryLocal ('Tiles__c', ['Id', 'Name', 'Tile_Colour__c', 'Tile_Icon__c', 'Parent_Filter__c', 'Function__c'], [{field: 'Parent_Filter__c', equals: 'TOP'}]).then ((value) => {
+      sf.queryLocal ('Tiles__c', ['Id', 'Name', 'Tile_Colour__c', 'Tile_Icon__c', 'Parent_Filter__c', 'Function__c'], [{field: 'Parent_Filter__c', equals: level}]).then ((value) => {
         console.log ('queryLocal success value : ' + JSON.stringify(value));
-        this.setState({  loading: false, tiles: value});
+        newState.tiles = value;
+        if  (level == 'TOP') {
+          console.log ('TileList componentDidMount, setState : ' + JSON.stringify(newState));
+          this.setState(newState);
+        } else {
+          // get Associated_Reports__r
+          sf.queryLocal ('Tiles__c', ['Id', 'Associated_Reports__r'], [{field: 'Id', equals: level}]).then ((value) => {
+            if (value[0].Associated_Reports__r) {
+              newState.ass_reports = value[0].Associated_Reports__r.records;
+            }
+            console.log ('TileList componentDidMount, setState : ' + JSON.stringify(newState));
+            this.setState(newState);
+          }, (err) => {
+              console.log ('queryLocal ass reports error reason : ' + err);
+          });
+        }
       }, (err) => {
           console.log ('queryLocal error reason : ' + err);
       });
-    }
-
-    handleNavClick (cflt) {
-        let cbc = this.state.breadcrumbs,
-            new_state = {filter: cflt, ass_reports: [], breadcrumbs: [], tiles: []},
-            sf = SFData.instance;
-
-        // record Associated_Reports__r
-
-        sf.queryLocal ('Tiles__c', ['Id', 'Name', 'Tile_Colour__c', 'Tile_Icon__c', 'Parent_Filter__c', 'Function__c'], [{field: 'Parent_Filter__c', equals: cflt}]).then ((value) => {
-          console.log ('queryLocal success value : ' + JSON.stringify(value));
-          new_state.tiles = value;
-          // set breadcrumbs
-          if  (cflt == 'TOP') {
-            console.log ('TileList handleNavClick, setState : ' + JSON.stringify(new_state));
-            this.setState(new_state);
-          } else {
-            // get Associated_Reports__r
-            sf.queryLocal ('Tiles__c', ['Id', 'Associated_Reports__r'], [{field: 'Id', equals: cflt}]).then ((value) => {
-              if (value[0].Associated_Reports__r) {
-                new_state.ass_reports = value[0].Associated_Reports__r.records;
-              }
-              var foundit = false,
-                  inhistory = seq(cbc, filter(function(x) {
-                      if (foundit == false && x.id == cflt) {
-                          foundit = true; return foundit;
-                      } else return !foundit}));
-              if (foundit) {
-                  new_state.breadcrumbs = inhistory;
-              }
-              else {
-                  let newname = seq(this.state.tiles,
-                      compose(
-                          filter(x => x.Id == cflt),
-                          map(x => x.Name)
-                      ))[0]
-                  new_state.breadcrumbs = this.state.breadcrumbs.concat({id: cflt, name: newname});
-              }
-              console.log ('TileList handleNavClick, setState : ' + JSON.stringify(new_state));
-              this.setState(new_state);
-            }, (err) => {
-                console.log ('queryLocal ass reports error reason : ' + err);
-            });
-          }
-
-        }, (err) => {
-            console.log ('queryLocal tiles error reason : ' + err);
-        });
     }
 
     selectFunction (e) {
@@ -342,22 +310,13 @@ export default class TileList extends Component {
 
     render () {
         var self = this,
-            cflt = this.state.filter;
+            level = this.props.cflt || 'TOP';
 
-        console.log ('TileList render : ' + cflt + ', breadcrumbs : ' + JSON.stringify(this.state.breadcrumbs));
+        console.log ('TileList render : ' + level + ', breadcrumbs : ' + JSON.stringify(this.state.breadcrumbs));
 
         // filter to selected function
         let tiles = seq(this.state.tiles,
             filter(x =>  this.state.funct == 'All' || x.Function__c == this.state.funct));
-
-/*
-        let tilereports = seq(this.state.tiles,
-            compose(
-                filter(x => x.Id == cflt ),
-                map (x => x.Associated_Reports__r)
-            ))[0],
-            reporta = tilereports && tilereports.records || [];
-*/
 
         var optionalElement;
         if (this.state.loading) {
@@ -401,9 +360,9 @@ export default class TileList extends Component {
                 </div><br/>
                 <div className="page-header-kh">
                     <ol className="breadcrumb" style={padding0}>
-                        <li className="margin-0"><a href="#" onClick={this.handleNavClick.bind(this, 'TOP')}><i className="fa fa-dashboard"></i> Home</a></li>
-                        {this.state.breadcrumbs.map(function(rt, i) { return (
-                            <li className="active"><a href="#" onClick={self.handleNavClick.bind(self, rt.id)}>{rt.name}</a></li>
+                        <li className="margin-0"><a href="#TileList?cflt=TOP" ><i className="fa fa-dashboard"></i> Home</a></li>
+                        {this.props.breadcrumbs.map(function(rt, i) { return (
+                            <li className="active"><a href={"#TileList?cflt="+rt.Id} >{rt.Name}</a></li>
                         );})}
                     </ol>
                 </div>
@@ -411,7 +370,7 @@ export default class TileList extends Component {
                 <div className="row">
                     {optionalElement}
                     {tiles.map(function(row, i) { return (
-                        <Tile data={row} onTileClick={self.handleNavClick}/>
+                        <Tile data={row} />
                     );})}
                     {this.state.ass_reports.map(function(row, i) { return (
                         <Report data={row} />

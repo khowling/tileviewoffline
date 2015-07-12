@@ -1,6 +1,7 @@
 'use strict';
 
 import React, {Component} from 'react';
+import { range, seq, compose, map, filter } from 'transducers.js';
 
 export default class Router extends Component {
 
@@ -17,12 +18,7 @@ export default class Router extends Component {
       if (typeof parms !== 'undefined') {
         let tfn = x => {
           let [n, v] = x.split('=');
-          if (n === 'gid') {
-            let [view, id] = v.split (':');
-            paramjson.view = view;
-            paramjson.id = id;
-          } else
-            paramjson[n] = v;
+          paramjson[n] = v;
           };
 
         if (parms.indexOf ('&') > -1)
@@ -57,14 +53,31 @@ export default class Router extends Component {
         console.log ('App url changed : ' + JSON.stringify(newComp));
         //if (newComp !== this.state.renderThis) {
         //this.props.updateRoute (newComp.hash);
-        this.setState ({renderThis: newComp.hash, urlparam: newComp.params});
+
+        var cflt = newComp.params.cflt,
+            newBreadcrums = [];
+
+        if (cflt && cflt !== 'TOP') {
+
+          var foundit = false,
+              inhistory = seq(this.state.breadcrumbs, filter(function(bc) {
+                  if (foundit == false && bc.Id == cflt) {
+                      foundit = true; return foundit;
+                  } else return !foundit}));
+          if (foundit) {
+              newBreadcrums = inhistory;
+          } else {
+              newBreadcrums = this.state.breadcrumbs.concat({Id: cflt, Name: 'nav'});
+          }
+        }
+        this.setState ({renderThis: newComp.hash, urlparam: newComp.params, breadcrumbs: newBreadcrums});
         //};
       });
 
       var newComp = Router.getURLNav();
       console.log ('App Initial URL : ' + JSON.stringify(newComp));
       //this.props.updateRoute (newComp.hash);
-      this.state =  {renderThis: newComp.hash, urlparam: newComp.params, formdata: []};
+      this.state =  {renderThis: newComp.hash, urlparam: newComp.params, breadcrumbs: []};
     }
 
     render() {
@@ -72,8 +85,7 @@ export default class Router extends Component {
       let Routefactory = this.props.componentFactories[this.state.renderThis];
       if (Routefactory) {
           return Routefactory(
-            {key: JSON.stringify(this.state.urlparam),
-             urlparam: this.state.urlparam});
+            Object.assign({key: JSON.stringify(this.state.urlparam)}, this.state.urlparam, {breadcrumbs: this.state.breadcrumbs}));
       } else return (
           <div>404 {this.state.renderThis}</div>
       )

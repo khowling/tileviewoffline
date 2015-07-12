@@ -5,6 +5,7 @@ import 'babel-core/polyfill';
 
 import React, {Component} from 'react';
 import SFData from './service/sfdata.es6';
+import Router from './components/router.jsx';
 
 import TileList from './components/tiles.jsx';
 import SyncProgress from './components/syncprogress.jsx';
@@ -29,6 +30,18 @@ var sfd = new SFData ({
     }
   ]);
 
+var routeFactories = (function createFactories (...comps) {
+    let factories = [];
+    for (let mods of comps) {
+      //console.log ('import mods : ' + mods);
+      if (typeof mods === "function" ) {
+        //console.log ('creating factory : ' + mods.name);
+        factories[mods.name] = React.createFactory(mods);
+      }
+    }
+    return factories;
+  })(TileList);
+
 document.getElementById("app").innerHTML =  'waiting for deviceready ' + window.location.href;
 document.addEventListener('deviceready', function() {
   document.getElementById("app").innerHTML =  'got cordova deviceready';
@@ -37,7 +50,7 @@ document.addEventListener('deviceready', function() {
         <div>
           <div><br/>Device Ready</div>
           <SyncProgress sfd={sfd}/>
-          <TileList/>
+          <Router componentFactories={routeFactories}/>
         </div>,  document.getElementById('app'));
   }, (error) => {
       document.getElementById("app").innerHTML =  'error ' + error;
@@ -50,7 +63,7 @@ if (window.location.href.indexOf ('localhost') >0) {
       <div>
         <div><br/>Running in localhost {window.location.href}</div>
         <SyncProgress sfd={sfd}/>
-        <TileList/>
+        <Router componentFactories={routeFactories}/>
       </div>,  document.getElementById('app'));
   });
 }
