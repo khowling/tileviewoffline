@@ -30,8 +30,8 @@ class App extends Component {
         {
           sObject: "Tiles__c",
           primaryField: 'Name',
-          syncQuery: "select Id, Name, Tile_Colour__c, Tile_Icon__c, parent__c, Function__c, (select name, id, report__r.Id, report__r.Name, report__r.summary__c, report__r.actual__c, report__r.target__c, report__r.difference__c, report__r.Source__c, report__r.Status__c from Associated_Reports__r where report__r.Status__c = 'Published' ) from Tiles__c where Status__c = 'Published' order by Order__c asc",
-          allFields: ["Id", "Name", "Tile_Colour__c", "Tile_Icon__c", "parent__c", "Function__c", "Status__c", "Order__c"],
+          syncQuery: "select Id, Name, Tile_Colour__c, Tile_Icon__c, Parent_Filter__c, Function__c, (select name, id, report__r.Id, report__r.Name, report__r.summary__c, report__r.actual__c, report__r.target__c, report__r.difference__c, report__r.Source__c, report__r.Status__c from Associated_Reports__r where report__r.Status__c = 'Published' ) from Tiles__c where Status__c = 'Published' order by Order__c asc",
+          allFields: ["Id", "Name", "Tile_Colour__c", "Tile_Icon__c", "Parent_Filter__c", "Function__c", "Status__c", "Order__c"],
           indexSpec:[{"path":"Id","type":"string"},{"path":"Name","type":"string"},{"path":"Status__c","type":"string"},{"path":"Order__c","type":"string"}],
         }
       ]);

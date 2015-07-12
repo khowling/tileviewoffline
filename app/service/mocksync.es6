@@ -18,6 +18,9 @@ export default class MockSync {
     this._sfconnect.query (target.query).then (
        (value) => {
          console.log ('sussess value : ' + value.length);
+         if (options.shapeData) {
+           value = options.shapeData (value);
+         }
          this._smartStore.upsertSoupEntriesWithExternalId(soupName, value, "Id",
              function (valueSoup) {
                console.log ('upsert success: ' + JSON.stringify(valueSoup));

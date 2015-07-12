@@ -2,18 +2,12 @@
 
 export default class MockStore {
 
-  constructor(soups) {
-    if (window.localStorage)
-      this._store = window.localStorage;
-    else {
-      this._store = {};
-    // register soups
-      soups.forEach(s => this._store[s.sObject] = JSON.stringify([]));
-    }
+  constructor(soups, store) {
+    this._store = store;
   }
 
   _find (obj, key, val) {
-    var sobjs = this._store[obj]? JSON.parse(this._store[obj]) : [];
+    var sobjs = JSON.parse(this._store.getItem(obj));
     if (val) {
         //console.log ('_find, for each existing record ' + sobjs.length);
       for (var i in sobjs) {
@@ -29,7 +23,7 @@ export default class MockStore {
 
   upsertSoupEntriesWithExternalId  (obj, records, keyfld, success, error) {
     //console.log ('SFDCMockStore upsertSoupEntriesWithExternalId '+obj+' on : ' + keyfld);
-    var sobjs = this._store[obj]? JSON.parse(this._store[obj]) : [];
+    var sobjs = JSON.parse(this._store.getItem(obj));
     for (var r in records) {
       var rec = records[r];
       var exist = this._find(obj, keyfld, rec[keyfld]);
@@ -46,13 +40,13 @@ export default class MockStore {
         }
       }
     }
-    this._store[obj] = JSON.stringify(sobjs);
+    this._store.setItem(obj, JSON.stringify(sobjs));
     success (records);
   }
 
   registerSoup (sname, idxes, success, error) {
     console.log ('SFDCMockStore registerSoup : ' + sname);
-    this._store[sname] = JSON.stringify([]);
+    this._store.setItem(sname, JSON.stringify([]));
     success();
   }
 
@@ -89,7 +83,7 @@ export default class MockStore {
 
   querySoup  (obj, qspec, success,error) {
     console.log ('SFDCMockStore querySoup : ' + obj +' : ' + JSON.stringify (qspec));
-    var sobjs = JSON.parse(this._store[obj]);
+    var sobjs = JSON.parse(this._store.getItem(obj));
     if (!qspec.field) {
       success ( {currentPageOrderedEntries: Array.from (sobjs)});
     } else if (qspec.field) {
@@ -98,12 +92,10 @@ export default class MockStore {
       for (var r in sobjs) {
         var rec = sobjs[r];
         var cval = rec[qspec.field];
-        if (cval) {
-          if (qspec.like && cval.indexOf(qspec.like) > -1) {
-            res.push (rec);
-          } else if (qspec.equals && qspec.equals == cval) {
-            res.push (rec);
-          }
+        if ("equals" in qspec) {
+          if (qspec.equals == cval) res.push (rec);
+        } else if ("like" in qspec) {
+          if (cval && cval.indexOf(qspec.like) > -1) res.push (rec);
         }
       }
       success( {currentPageOrderedEntries: Array.from (res)});

@@ -24,14 +24,18 @@ export default class SFData {
 
 
   static _buildSOQL (obj, fields, where, orderby, soupQuery) {
-    let qstr = "SELECT " + fields.map(f => soupQuery? "{" + obj + ":" + f + "}" : f).join(', ') + " FROM " + (soupQuery? "{" + obj + "}" : obj);
+
+    let qstr = soupQuery?
+      "SELECT {"+obj+":_soup} FROM {" + obj + "}" :
+      "SELECT " + fields.join(', ') + " FROM " +  obj;
+
     if (where) {
       let wildcard = soupQuery ? "%" : "%25";
       qstr += " WHERE " + where.map(i =>
-        i.field +
-        i.contains && (" LIKE '" + wildcard + i.contains + wildcard + "'") ||
-        i.like && (" LIKE '" + i.like + wildcard + "%'") ||
-        i.equals && (" = '" + i.equals + "'") || ''
+        (soupQuery? "{" + obj + ":" + i.field + "}" : i.field ) + (
+        ("contains" in i) && (" LIKE '" + wildcard + i.contains + wildcard + "'") ||
+        ("like" in i) && (" LIKE '" + i.like + wildcard + "%'") ||
+        ("equals" in i) && (" = " + (i.equals && ("'"+i.equals+"'") || "null")) || '')
         ).join(' AND ');
     }
     if (orderby)
@@ -41,31 +45,56 @@ export default class SFData {
   }
 
   syncAll (progressCallback) {
-    progressCallback({progress: 0.5, msg: this._soups[0].sObject});
-    this.syncDownSoup (this._soups[0]).then ( (success) => {
-      progressCallback({progress: 1, msg: this._soups[1].sObject});
-      this.syncDownSoup (this._soups[1]).then ( (success) => {
-        progressCallback({progress: 0, msg: "last sync just now"});
-      }, function (fail) {
-        progressCallback({progress: -1, msg: "Error: " + fail});
+    //this._oauth.getAuthCredentials((JsonCredentials) => {
+    this._oauth.authenticate((JsonCredentials) => {
+        console.log ('JsonCredentials: ' + JSON.stringify(JsonCredentials));
+        this._host = JsonCredentials.instanceUrl;
+        this._access_token = JsonCredentials.accessToken;
+
+        progressCallback({progress: 0.5, msg: this._soups[0].sObject});
+        this.syncDownSoup (this._soups[0]).then ( (success) => {
+          progressCallback({progress: 1, msg: this._soups[1].sObject});
+          this.syncDownSoup (this._soups[1]).then ( (success) => {
+            progressCallback({progress: 0, msg: "last sync just now"});
+          }, function (fail) {
+            progressCallback({progress: -1, msg: "Error: " + fail});
+          });
+        }, function (fail) {
+          progressCallback({progress: -1, msg: "Error: " + fail});
+        });
+
+      }, (authError) => {
+        progressCallback({progress: -1, msg: "auth error: " + authError});
       });
-    }, function (fail) {
-      progressCallback({progress: -1, msg: "Error: " + fail});
-    });
+
   }
 
   syncDownSoup (soupMeta) {
     var promise = new Promise( (resolve, reject) => {
-      this._smartSync.syncDown(
-        {type:"soql", query:  soupMeta.syncQuery || SFData._buildSOQL (soupMeta.sObject, soupMeta.allFields)},
-        soupMeta.sObject,
-        {},
-        (syncDownValue) => {
-          console.log ('syncDown Val: ' + JSON.stringify(syncDownValue));
-          resolve (syncDownValue);
-        }, (err) => {
-          console.log ('syncDown error: ' + JSON.stringify(err));
-          reject(err);
+      this._smartStore.removeSoup(soupMeta.sObject,
+        (success) => {
+          console.log ('remove Existing soup success: ' + soupMeta.sObject);
+          this._smartStore.registerSoup(soupMeta.sObject, soupMeta.indexSpec,
+            (success) => {
+              console.log ('re-registerSoup success: ' + soupMeta.sObject);
+              this._smartSync.syncDown(
+                {type:"soql", query:  soupMeta.syncQuery || SFData._buildSOQL (soupMeta.sObject, soupMeta.allFields)},
+                soupMeta.sObject,
+                {shapeData: soupMeta.shapeData},
+                (syncDownValue) => {
+                  console.log ('syncDown success: ' + JSON.stringify(syncDownValue));
+                  resolve (syncDownValue);
+                }, (error) => {
+                  console.log ('syncDown error: ' + JSON.stringify(error));
+                  reject(error);
+                });
+            }, (error) => {
+              console.log ('re-registerSoup error: ' + JSON.stringify(error));
+              reject(error);
+            });
+        }, (error) => {
+          console.log ('remove Existing soup  error: ' + JSON.stringify(error));
+          reject(error);
         });
     });
     return promise;
@@ -76,49 +105,40 @@ export default class SFData {
 
       let qspec;
       let smartqsl = false;
+      let alwaysSmart = (this.cordova);
 
       let soup = this._soups.find (s => s.sObject === obj ),
           smartstore = this._smartStore;
 
       if (!soup) reject("Object not found");
 
-      if (!where || where.length == 0) {
+      if (!alwaysSmart && (!where || where.length == 0)) {
         console.log ('offline search running buildAllQuerySpec : ' + soup.primaryField);
         qspec = smartstore.buildAllQuerySpec (soup.primaryField, 'ascending', 400);
       }
-      else if (where.length == 1 && where[0].equals) {
+      else if (!alwaysSmart && (where.length == 1 && ("equals" in where[0]))) {
         console.log ('offline search running buildExactQuerySpec : ' + where[0].field + ' = ' + where[0].equals);
         qspec = smartstore.buildExactQuerySpec (where[0].field, where[0].equals, 'ascending', 400);
       }
-      else if (where.length == 1 && where[0].like) {
+      else if (!alwaysSmart && (where.length == 1 && ("like" in where[0]))) {
         console.log ('offline search running buildLikeQuerySpec : ' + where[0].field + ' = ' + where[0].equals);
         qspec = smartstore.buildLikeQuerySpec (where[0].field, where[0].like + "%", 'ascending', 400);
       }
       else {
         // SmartQuery requires Everyfield to be indexed & ugly post processing ! the others do not!
-        smartqsl = SFData._buildSOQL (soup.sObject, fields, null, null, true);
+        smartqsl = SFData._buildSOQL (soup.sObject, fields, where, null, true);
         console.log ('offline search running smartqsl : ' + smartqsl);
-        qspec = smartstore.buildSmartQuerySpec(smartqsl, 100);
+        qspec = smartstore.buildSmartQuerySpec(smartqsl, 400);
       }
 
       var success = function (val) {
         console.log ('querySoup success got data ' + JSON.stringify(val));
         if (smartqsl) { // using smartSQL, need to do some reconstruction UGH!!!
-          var results = [];
-          for (var rrecidx in val.currentPageOrderedEntries) {
-            var res = {},
-              rrec = val.currentPageOrderedEntries[rrecidx];
-            for (var fidx in fields) {
-              res[fields[fidx]] = rrec[fidx];
-            }
-            results.push (res);
-          }
-          resolve(results);
+          resolve (val.currentPageOrderedEntries.map (i => i[0]));
         } else {
           resolve(val.currentPageOrderedEntries);
         }
       }
-
       var error = function (val) {
         //console.log  ('querySoup error ' + JSON.stringify(val));
         reject(val);
@@ -168,7 +188,10 @@ export default class SFData {
       try {
         this.cordova = cordova;
         this._oauth = cordova.require("com.salesforce.plugin.oauth");
+
         this._smartStore = cordova.require("com.salesforce.plugin.smartstore");
+        //this._smartStore = new MockStore(this._soups, window.localStorage);
+
         this._bootstrap = cordova.require("com.salesforce.util.bootstrap");
 
         this._smartSync = new MockSync(this._smartStore, this);
@@ -191,14 +214,7 @@ export default class SFData {
             this._smartStore.registerSoup(this._soups[1].sObject, this._soups[1].indexSpec,
               (success) => {
                 console.log ('registerSoup success: ' + this._soups[1].sObject);
-                this._oauth.getAuthCredentials((JsonCredentials) => {
-                    console.log ('JsonCredentials: ' + JSON.stringify(JsonCredentials));
-                    this._host = JsonCredentials.instanceUrl;
-                    this._access_token = JsonCredentials.accessToken;
-                    resolve();
-                  }, (authError) => {
-                    reject(authError);
-                  });
+                resolve();
               }, (error) => {
                 reject(error);
               });
@@ -213,9 +229,10 @@ export default class SFData {
 
   webReady(creds) {
     return new Promise( (resolve, reject) => {
-      this._host = creds.host;
-      this._access_token = creds.session_api;
-      this._smartStore = new MockStore(this._soups);
+      this._oauth = {authenticate: function(success) {
+        success ({instanceUrl: creds.host, accessToken: creds.session_api});
+      }}
+      this._smartStore = new MockStore(this._soups, window.localStorage);
       this._smartSync = new MockSync(this._smartStore, this);
       resolve();
     });

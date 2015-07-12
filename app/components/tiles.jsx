@@ -217,7 +217,7 @@ export default class TileList extends Component {
     constructor () {
       super();
       console.log ('TileList constructor');
-      this.state =  { breadcrumbs: [], tiles: [], loading: false, filter: null, funct: 'All' };
+      this.state =  { breadcrumbs: [], tiles: [], ass_reports: [], loading: false, filter: null, funct: 'All' };
 
       this.handleNavClick = this.handleNavClick.bind(this);
     }
@@ -248,87 +248,91 @@ export default class TileList extends Component {
          }
     }
 
-    _loadTileData() {
-      var sf = SFData.instance;
-      //var qsttr = "select Id, Name, Tile_Colour__c, Tile_Icon__c, parent__c, Function__c, (select name, id, report__r.Id, report__r.Name, report__r.summary__c, report__r.actual__c, report__r.target__c, report__r.difference__c, report__r.Source__c, report__r.Status__c from Associated_Reports__r where report__r.Status__c = 'Published' ) from Tiles__c where Status__c = 'Published' order by Order__c asc",
-      // [{field: 'Status__c', equals: 'Published'}]
-      return new Promise( (resolve, reject) => {
-        sf.queryLocal ('Tiles__c').then (
-          function (value) {
-            console.log ('queryLocal success value : ' + JSON.stringify(value));
-            var res = null;
-            do {
-                console.log ('calling rollup with : ' + JSON.stringify (res));
-                res = (function (calcChildTot, recs) {
-                    let calcParent = {}, firsttime = !calcChildTot;
-                    for (var tidx in recs) {
-                        var tile = recs[tidx];
-                        if (firsttime) {
-                            console.log('This is the first time, set tcnt on all tiles to number of child accociated reports')
-                            tile.tcnt = tile.Associated_Reports__r && tile.Associated_Reports__r.totalSize || 0;
-                        } else if (calcChildTot[tile.Id] > 0 ) {
-                            console.log ('Not first time & found a child rollup number for this parent, add it to the tcnt')
-                            tile.tcnt = calcChildTot[tile.Id] + (tile.tcnt || 0);
-                        }
-                        if (tile.tcnt > 0 && tile.Parent__c && (firsttime || calcChildTot[tile.Id] > 0 )) {
-                            console.log ('Need to Calculate Parent of : ' + tile.Name + ' : ' + tile.tcnt);
-                            calcParent[tile.Parent__c] = (firsttime && tile.tcnt || calcChildTot[tile.Id]) + (calcParent[tile.Parent__c] || 0) ;
-                        }
-                    }
-                    return calcParent;
-                })(res, value);
-            } while (Object.keys(res).length >0)
-            resolve(value);
-          }, function (reason) {
-            reject (JSON.stringify(reason));
-          }
-        );
-      });
+    // Called automatically by Sync
+    static shapeData (value) {
+      var res = null;
+      do {
+          console.log ('calling rollup with : ' + JSON.stringify (res));
+          res = (function (calcChildTot, recs) {
+              let calcParent = {}, firsttime = !calcChildTot;
+              for (var tidx in recs) {
+                  var tile = recs[tidx];
+                  delete tile["attributes"];
+                  if (firsttime) {
+                      console.log('This is the first time, set tcnt on all tiles to number of child accociated reports')
+                      tile.tcnt = tile.Associated_Reports__r && tile.Associated_Reports__r.totalSize || 0;
+                  } else if (calcChildTot[tile.Id] > 0 ) {
+                      console.log ('Not first time & found a child rollup number for this parent, add it to the tcnt')
+                      tile.tcnt = calcChildTot[tile.Id] + (tile.tcnt || 0);
+                  }
+                  if (tile.tcnt > 0 && tile.Parent_Filter__c && (firsttime || calcChildTot[tile.Id] > 0 )) {
+                      console.log ('Need to Calculate Parent of : ' + tile.Name + ' : ' + tile.tcnt);
+                      calcParent[tile.Parent_Filter__c] = (firsttime && tile.tcnt || calcChildTot[tile.Id]) + (calcParent[tile.Parent_Filter__c] || 0) ;
+                  }
+              }
+              return calcParent;
+          })(res, value);
+      } while (Object.keys(res).length >0)
+      return value;
     }
-    // The statics object allows you to define static methods that can be called on the component class
-    componentDidMount() {
-        console.log ('TileList componentDidMount');
 
-        this._loadTileData().then((value) => {
-          this.setState({  loading: false, tiles: value});
-        }, (err) => {
-            console.log ('queryLocal error reason : ' + err);
-        })
+    componentDidMount() {
+      let sf = SFData.instance;
+      console.log ('TileList componentDidMount ()');
+      sf.queryLocal ('Tiles__c', ['Id', 'Name', 'Tile_Colour__c', 'Tile_Icon__c', 'Parent_Filter__c', 'Function__c'], [{field: 'Parent_Filter__c', equals: 'TOP'}]).then ((value) => {
+        console.log ('queryLocal success value : ' + JSON.stringify(value));
+        this.setState({  loading: false, tiles: value});
+      }, (err) => {
+          console.log ('queryLocal error reason : ' + err);
+      });
     }
 
     handleNavClick (cflt) {
         let cbc = this.state.breadcrumbs,
-            new_state = {filter: cflt};
+            new_state = {filter: cflt, ass_reports: [], breadcrumbs: [], tiles: []},
+            sf = SFData.instance;
 
-        console.log ('TileList handleNavClick: ' + cflt + ', breadcrumbs ['+ cbc +']');
-        if  (cflt == null) {
-            new_state.breadcrumbs = [];
-            this._loadTileData().then((value) => {
-              new_state.tiles = value;
-              this.setState(new_state);
-            }, (err) => {
-                console.log ('queryLocal error reason : ' + err);
-            })
-        } else {
-            var foundit = false,
-                inhistory = seq(cbc, filter(function(x) {
-                    if (foundit == false && x.id == cflt) {
-                        foundit = true; return foundit;
-                    } else return !foundit}));
-            if (foundit) {
-                new_state.breadcrumbs = inhistory;
-            }
-            else {
-                let newname = seq(this.state.tiles,
-                    compose(
-                        filter(x => x.Id == cflt),
-                        map(x => x.Name)
-                    ))[0]
-                new_state.breadcrumbs = this.state.breadcrumbs.concat({id: cflt, name: newname});
-            }
+        // record Associated_Reports__r
+
+        sf.queryLocal ('Tiles__c', ['Id', 'Name', 'Tile_Colour__c', 'Tile_Icon__c', 'Parent_Filter__c', 'Function__c'], [{field: 'Parent_Filter__c', equals: cflt}]).then ((value) => {
+          console.log ('queryLocal success value : ' + JSON.stringify(value));
+          new_state.tiles = value;
+          // set breadcrumbs
+          if  (cflt == 'TOP') {
             console.log ('TileList handleNavClick, setState : ' + JSON.stringify(new_state));
             this.setState(new_state);
-        }
+          } else {
+            // get Associated_Reports__r
+            sf.queryLocal ('Tiles__c', ['Id', 'Associated_Reports__r'], [{field: 'Id', equals: cflt}]).then ((value) => {
+              if (value[0].Associated_Reports__r) {
+                new_state.ass_reports = value[0].Associated_Reports__r.records;
+              }
+              var foundit = false,
+                  inhistory = seq(cbc, filter(function(x) {
+                      if (foundit == false && x.id == cflt) {
+                          foundit = true; return foundit;
+                      } else return !foundit}));
+              if (foundit) {
+                  new_state.breadcrumbs = inhistory;
+              }
+              else {
+                  let newname = seq(this.state.tiles,
+                      compose(
+                          filter(x => x.Id == cflt),
+                          map(x => x.Name)
+                      ))[0]
+                  new_state.breadcrumbs = this.state.breadcrumbs.concat({id: cflt, name: newname});
+              }
+              console.log ('TileList handleNavClick, setState : ' + JSON.stringify(new_state));
+              this.setState(new_state);
+            }, (err) => {
+                console.log ('queryLocal ass reports error reason : ' + err);
+            });
+          }
+
+        }, (err) => {
+            console.log ('queryLocal tiles error reason : ' + err);
+        });
     }
 
     selectFunction (e) {
@@ -337,18 +341,23 @@ export default class TileList extends Component {
     }
 
     render () {
-        var self = this;
-        let cflt = this.state.filter; // this.getParams().flt;
+        var self = this,
+            cflt = this.state.filter;
+
         console.log ('TileList render : ' + cflt + ', breadcrumbs : ' + JSON.stringify(this.state.breadcrumbs));
+
+        // filter to selected function
         let tiles = seq(this.state.tiles,
-            filter(x =>  x.Parent__c == cflt && (this.state.funct == 'All' || x.Function__c == this.state.funct)));
+            filter(x =>  this.state.funct == 'All' || x.Function__c == this.state.funct));
+
+/*
         let tilereports = seq(this.state.tiles,
             compose(
                 filter(x => x.Id == cflt ),
                 map (x => x.Associated_Reports__r)
             ))[0],
             reporta = tilereports && tilereports.records || [];
-
+*/
 
         var optionalElement;
         if (this.state.loading) {
@@ -392,7 +401,7 @@ export default class TileList extends Component {
                 </div><br/>
                 <div className="page-header-kh">
                     <ol className="breadcrumb" style={padding0}>
-                        <li className="margin-0"><a href="#" onClick={this.handleNavClick.bind(this, null)}><i className="fa fa-dashboard"></i> Home</a></li>
+                        <li className="margin-0"><a href="#" onClick={this.handleNavClick.bind(this, 'TOP')}><i className="fa fa-dashboard"></i> Home</a></li>
                         {this.state.breadcrumbs.map(function(rt, i) { return (
                             <li className="active"><a href="#" onClick={self.handleNavClick.bind(self, rt.id)}>{rt.name}</a></li>
                         );})}
@@ -404,7 +413,7 @@ export default class TileList extends Component {
                     {tiles.map(function(row, i) { return (
                         <Tile data={row} onTileClick={self.handleNavClick}/>
                     );})}
-                    {reporta.map(function(row, i) { return (
+                    {this.state.ass_reports.map(function(row, i) { return (
                         <Report data={row} />
                     );})}
                 </div>
