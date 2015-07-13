@@ -37,7 +37,7 @@ export default class SyncProgress extends Component {
 
   openSync() {
     console.log ('open');
-    //this.setState ({lastsync: "in progress"});
+
     this.props.sfd.syncAll((status) => {
       if (status.progress >0)
         this.progressBar.animate(status.progress);

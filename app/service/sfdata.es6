@@ -2,6 +2,7 @@
 
 import MockStore from './mockstore.es6';
 import MockSync from './mocksync.es6';
+import { range, seq, compose, map, filter } from 'transducers.js';
 
 let instance = null;
 const SF_API_VERSION = '/services/data/v32.0';
@@ -55,7 +56,9 @@ export default class SFData {
         this.syncDownSoup (this._soups[0]).then ( (success) => {
           progressCallback({progress: 1, msg: this._soups[1].sObject});
           this.syncDownSoup (this._soups[1]).then ( (success) => {
-            progressCallback({progress: 0, msg: "last sync just now"});
+            this.syncFiles (progressCallback).then((success) => {
+                progressCallback({progress: 0, msg: "last sync just now"});
+            });
           }, function (fail) {
             progressCallback({progress: -1, msg: "Error: " + fail});
           });
@@ -181,6 +184,87 @@ export default class SFData {
       return promise;
   }
 
+  syncFiles(progressCallback) {
+
+      return new Promise( (resolve, reject) => {
+
+        progressCallback({progress: 0.7, msg: 'Looking for Files'});
+        this.queryLocal ('Tiles__c').then ((value) => {
+          let fileIds = new Set();
+          for (let tile of value) {
+            if (tile.Associated_Reports__r) {
+              let newIds =  seq( tile.Associated_Reports__r.records,
+                compose(
+                  filter (t => (t.Report__r.Source__c === 'Salesforce' && t.Report__r.Document_ID__c && t.Report__r.Document_ID__c.startsWith('069')) ),
+                  map (m => m.Report__r.Document_ID__c)
+                ));
+                if (newIds.length >0) {
+                  console.log ('got new Ids from ' + tile.Name +' : ' + JSON.stringify(newIds));
+                  newIds.map (i => fileIds.add(i));
+                }
+            }
+          }
+          console.log ('got new Ids ' + JSON.stringify(fileIds));
+          var p = null;
+          for (let fileid of fileIds) {
+            let filename = fileid+'.pdf';
+            if (!p) {
+              p = this.downloadFile(fileid, filename);
+            } else {
+              p = p.then(() => this.downloadFile(fileid, filename));
+            }
+          }
+          p.then (() => resolve());
+        }, err => console.log ('queryLocal error : ' + JSON.stringify(err)));
+      });
+  }
+
+  downloadFile (fileid, filename) {
+    console.log('downloadFile : '  + filename);
+    return new Promise( (resolve, reject) => {
+      // delete file
+      this._fs.root.getFile(filename, {create: false}, function(fileEntry) {
+        fileEntry.remove(function() {
+          console.log('File removed: '  + filename);
+        }, err => console.log ('cannot delete: ' + filename));
+      }, err => console.log ('cannot get file : ' + filename));
+      // end delete
+      var client = new XMLHttpRequest();
+      client.open('GET', this._host + SF_API_VERSION + '/chatter/files/'+fileid+'/content');
+      client.setRequestHeader ("Authorization", "OAuth " + this._access_token);
+      client.responseType = "blob";
+      client.onload =  () => {
+        if (client.status == 200) {
+          this._fs.root.getFile(filename,
+            {create: true, exclusive: true}, function(fileEntry) {
+              fileEntry.createWriter(function(fileWriter) {
+
+                fileWriter.onwriteend = function(e) {
+                  console.log('Write completed fullPath: ' + fileEntry.fullPath);
+                  resolve();
+                };
+
+                fileWriter.onerror = function(e) {
+                  console.log('Write failed: ' + e.toString());
+                  reject('Write failed: ' + e.toString());
+                };
+                fileWriter.write(client.response);
+              });
+            }, err => {
+              console.log('getFile failed: ' + JSON.stringify(err));
+              reject('getFile failed: ' + JSON.stringify(err));
+            }
+          );
+        } else {
+          // Performs the function "reject" when this.status is different than 200
+          console.log ("Response Error:" + client.statusText);
+          reject("Response Error:" + client.statusText);
+        }
+      };
+      client.send();
+    });
+  }
+
   cordovaReady (cordova) {
     return new Promise( (resolve, reject) => {
       console.log ('running cordovaReady');
@@ -188,15 +272,11 @@ export default class SFData {
       try {
         this.cordova = cordova;
         this._oauth = cordova.require("com.salesforce.plugin.oauth");
-
         this._smartStore = cordova.require("com.salesforce.plugin.smartstore");
         //this._smartStore = new MockStore(this._soups, window.localStorage);
-
         this._bootstrap = cordova.require("com.salesforce.util.bootstrap");
-
         this._smartSync = new MockSync(this._smartStore, this);
     //  this._smartSync = cordova.require("com.salesforce.plugin.smartsync");
-
       //  this.isOnline = this._bootstrap.deviceIsOnline();
 
         /*
@@ -214,7 +294,14 @@ export default class SFData {
             this._smartStore.registerSoup(this._soups[1].sObject, this._soups[1].indexSpec,
               (success) => {
                 console.log ('registerSoup success: ' + this._soups[1].sObject);
-                resolve();
+                // cordova plug 'cordova-plugin-file' clobbers window.requestFileSystem
+                window.requestFileSystem (window.PERSISTENT, 10*1024*1024, fs => {
+                    console.log ('initialised filesystem : ' + fs);
+                    this._fs = fs;
+                    resolve();
+                  }, err => {
+                    reject ('cannot get filesystem: ' + err);
+                  });
               }, (error) => {
                 reject(error);
               });
@@ -234,7 +321,14 @@ export default class SFData {
       }}
       this._smartStore = new MockStore(this._soups, window.localStorage);
       this._smartSync = new MockSync(this._smartStore, this);
-      resolve();
+
+      window.webkitRequestFileSystem (window.TEMPORARY, 10*1024*1024, fs => {
+          console.log ('initialised filesystem : ' + JSON.stringify(fs));
+          this._fs = fs;
+          resolve();
+        }, err => {
+          reject ('cannot get filesystem: ' + err);
+        });
     });
   }
 }

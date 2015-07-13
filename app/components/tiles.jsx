@@ -78,6 +78,13 @@ class Report extends Component {
     }
 
     navToReport (id) {
+      var rdata = this.props.data.Report__r;
+
+      if (rdata.Source__c === 'Salesforce') {
+        console.log ('hope its syncd to local filesystem: '+rdata.Document_ID__c);
+        window.open('filesystem:file:///persistent/'+rdata.Document_ID__c+'.pdf', '_blank');
+        //filesystem:https://localhost:8000/
+      } else {
         console.log ('navToReport event : ' + id);
         try {
             console.log ('navToReport got sforce');
@@ -85,6 +92,7 @@ class Report extends Component {
         }  catch (e) {
             window.location =  '/apex/OVReport?id=' + id;
         }
+      }
     }
 
     render () {
@@ -109,12 +117,17 @@ class Report extends Component {
 
         var chatp = {width: "55%"};
 
+        var rHref = '#';
+        if (rdata.Source__c === 'Salesforce') {
+          console.log ('hope its syncd to local filesystem: '+rdata.Document_ID__c);
+          rHref = 'cdvfile:///persistent/'+rdata.Document_ID__c+'.pdf';
+        }
         return (
             <div className="col-xs-12 col-sm-6 col-md-4 col-lg-3">
 
                 <div className={boxclass}>
                     <div className="box-header" data-toggle="tooltip" title="" data-original-title="Header tooltip">
-                        <h3 className="box-title">{rdata.Name}<br/>
+                        <h3 className="box-title">{rdata.Name} <small>{rdata.Source__c}</small><br/>
                             <small>Actual: <code>{rdata.Actual__c}</code></small>
                             <small>Target: <code>{rdata.Target__c}</code></small>
                             <i className={styleupdown}></i></h3>
@@ -165,7 +178,7 @@ class Report extends Component {
                     </div>
                     <div className="box-footer" style={divStyleHidden}>
 
-                        <a className="btn-kh  btn-block btn-success" onClick={this.navToReport.bind(this, rdata.Id)}>
+                        <a className="btn-kh  btn-block btn-success" href={rHref} target="_blank">
                             <i className="fa fa-play"></i> Open
                         </a>
                     </div>
@@ -220,6 +233,7 @@ export default class TileList extends Component {
       this.state =  { breadcrumbs: [], tiles: [], ass_reports: [], loading: false, filter: null, funct: 'All' };
     }
 
+/*
     componentWillReceiveProps (nextProps) {
         let cbc = this.state.breadcrumbs,
             cflt = nextProps.flt; //this.getParams().flt;
@@ -245,6 +259,7 @@ export default class TileList extends Component {
              }
          }
     }
+*/
 
     // Called automatically by Sync
     static shapeData (value) {
