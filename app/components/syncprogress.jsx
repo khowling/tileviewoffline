@@ -12,12 +12,11 @@ export default class SyncProgress extends Component {
   }
 
   componentDidMount() {
-
     this.progressBar = new ProgressBar.Circle(React.findDOMNode(this.refs.syncbar), {
           color: '#FCB03C',
-          strokeWidth: 5,
+          strokeWidth: 10,
           trailWidth: 10,
-          duration: 1000,
+          duration: 2000,
           easing: "easeOut",
           text: {
               value: '',
@@ -30,9 +29,6 @@ export default class SyncProgress extends Component {
               bar.setText('');
           }
       });
-    //
-
-
   }
 
   openSync() {
@@ -44,14 +40,24 @@ export default class SyncProgress extends Component {
       else
         this.progressBar.set(0);
       this.setState ({lastsync: status.msg});
-    });
+    }).then(
+      () => {
+        this.progressBar.set(0);
+        this.setState ({lastsync:  "sync <1m ago"});
+        // redirect to homepage, add stime to ensure TileList receives new key, thus gets rebuilt.
+        //window.location.href = '/#TileList?stime=' + new Date().getTime();
+        this.props.doneRefresh();
+      },
+      fail => {
+        this.setState ({lastsync:  "Error: " + fail});
+      });
   }
 
   render() {
     var self = this;
     var display = this.state.syncAvailable ? 'fixed' : 'none';
     return (
-        <div style={{display: display, position: "fixed",  top: "15px",  right: "15px;", zIndex: "5"}} >
+        <div style={{display: display, position: "fixed",  top: "15px",  right: "15px", zIndex: "5"}} >
           <button className="button btn-kh btn-warning" style={{display: "inline-block", paddingLeft: ".5rem"}} onClick={this.openSync.bind(this)}>
             <div style={{display: "inline-block", width: "30px", verticalAlign: "middle", marginRight: "1rem", marginBottom: ".2rem"}} ref="syncbar" />
             <div className="text-heading--label" style={{verticalAlign: "middle", display: "inline-block"}}>{this.state.lastsync}</div>

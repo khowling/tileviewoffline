@@ -1,10 +1,14 @@
+<% if (VISUALFORCE) { %>
+<apex:page applyHtmlTag="true" showHeader="true">
+<% } else { %>
 <!DOCTYPE html>
+<% } %>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width" />
   <title><%= title %></title>
-  <% if (true || debug === 'false') { %>
+  <% if (true || DEBUG === 'false') { %>
   <link type="text/css" rel="stylesheet" media="all" href="css/app.<%= version %>.css" />
   <% } %>
 
@@ -28,14 +32,15 @@
 
   <script>
         var _sfdccreds = {
-            host: 'https://eu5.salesforce.com',
-            sfdc_api_version: '/services/data/v32.0',
-            session_api: '{!$Api.Session_ID}'
+<% if (VISUALFORCE) { %>
+            session_api: '{!$Api.Session_ID}',
+            visualforce: true,
+<% } else if (DEBUG) { %>
+            session_api: <%= AccessToken1 %> + "!" + <%= AccessToken2 %>,
+<% } %>
+            host: 'https://eu5.salesforce.com'
         };
-        if (_sfdccreds.session_api.indexOf("Api.Session_ID") > -1) {
-            console.log ('we are not in a vf page, set debug params');
-            _sfdccreds.session_api = <%= AccessToken1 %> + "!" + <%= AccessToken2 %>;
-        }
+
   </script>
   <style>
     .wdth-l { width: 50%; }
@@ -109,3 +114,6 @@
 
 </body>
 </html>
+<% if (VISUALFORCE) { %>
+</apex:page >
+<% } %>

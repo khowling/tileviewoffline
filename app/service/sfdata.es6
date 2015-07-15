@@ -14,6 +14,8 @@ export default class SFData {
       throw "SFData() only allow to construct once";
     }
     this._soups = soups;
+    this._cordovaReady = false;
+    this._gotChromeFileSystem = false;
     instance = this;
   }
 
@@ -46,30 +48,32 @@ export default class SFData {
   }
 
   syncAll (progressCallback) {
+    return new Promise( (resolve, reject) => {
     //this._oauth.getAuthCredentials((JsonCredentials) => {
-    this._oauth.authenticate((JsonCredentials) => {
-        console.log ('JsonCredentials: ' + JSON.stringify(JsonCredentials));
+      this._oauth.authenticate((JsonCredentials) => {
+        //console.log ('JsonCredentials: ' + JSON.stringify(JsonCredentials));
         this._host = JsonCredentials.instanceUrl;
         this._access_token = JsonCredentials.accessToken;
-
-        progressCallback({progress: 0.5, msg: this._soups[0].sObject});
+        progressCallback({progress: 1, msg: this._soups[0].sObject});
         this.syncDownSoup (this._soups[0]).then ( (success) => {
+          progressCallback({progress: 0, msg: this._soups[1].sObject});
           progressCallback({progress: 1, msg: this._soups[1].sObject});
           this.syncDownSoup (this._soups[1]).then ( (success) => {
             this.syncFiles (progressCallback).then((success) => {
-                progressCallback({progress: 0, msg: "last sync just now"});
+                resolve();
+            }, function (fail) {
+              reject (fail);
             });
           }, function (fail) {
-            progressCallback({progress: -1, msg: "Error: " + fail});
+            reject (fail);
           });
         }, function (fail) {
-          progressCallback({progress: -1, msg: "Error: " + fail});
+          reject (fail);
         });
-
       }, (authError) => {
-        progressCallback({progress: -1, msg: "auth error: " + authError});
+        reject (authError);
       });
-
+    });
   }
 
   syncDownSoup (soupMeta) {
@@ -85,7 +89,7 @@ export default class SFData {
                 soupMeta.sObject,
                 {shapeData: soupMeta.shapeData},
                 (syncDownValue) => {
-                  console.log ('syncDown success: ' + JSON.stringify(syncDownValue));
+                  //console.log ('syncDown success: ' + JSON.stringify(syncDownValue));
                   resolve (syncDownValue);
                 }, (error) => {
                   console.log ('syncDown error: ' + JSON.stringify(error));
@@ -135,7 +139,7 @@ export default class SFData {
       }
 
       var success = function (val) {
-        console.log ('querySoup success got data ' + JSON.stringify(val));
+        //console.log ('querySoup success got data ' + JSON.stringify(val));
         if (smartqsl) { // using smartSQL, need to do some reconstruction UGH!!!
           resolve (val.currentPageOrderedEntries.map (i => i[0]));
         } else {
@@ -188,7 +192,7 @@ export default class SFData {
 
       return new Promise( (resolve, reject) => {
 
-        progressCallback({progress: 0.7, msg: 'Looking for Files'});
+        progressCallback({progress: 0, msg: 'Looking for Files'});
         this.queryLocal ('Tiles__c').then ((value) => {
           let fileIds = new Set();
           for (let tile of value) {
@@ -205,16 +209,24 @@ export default class SFData {
             }
           }
           console.log ('got new Ids ' + JSON.stringify(fileIds));
-          var p = null;
+          var p = null, pfilename;
           for (let fileid of fileIds) {
             let filename = fileid+'.pdf';
             if (!p) {
+              pfilename = filename;
               p = this.downloadFile(fileid, filename);
             } else {
-              p = p.then(() => this.downloadFile(fileid, filename));
+              p = p.then(() => {
+                progressCallback({progress: 0, msg: filename});
+                progressCallback({progress: 1, msg: filename});
+                this.downloadFile(fileid, filename);
+              });
             }
           }
-          p.then (() => resolve());
+          if (p) {
+            progressCallback({progress: 1, msg: pfilename});
+            p.then (() => resolve());
+          }
         }, err => console.log ('queryLocal error : ' + JSON.stringify(err)));
       });
   }
@@ -270,6 +282,7 @@ export default class SFData {
       console.log ('running cordovaReady');
 
       try {
+        this._cordovaReady = true;
         this.cordova = cordova;
         this._oauth = cordova.require("com.salesforce.plugin.oauth");
         this._smartStore = cordova.require("com.salesforce.plugin.smartstore");
@@ -296,8 +309,9 @@ export default class SFData {
                 console.log ('registerSoup success: ' + this._soups[1].sObject);
                 // cordova plug 'cordova-plugin-file' clobbers window.requestFileSystem
                 window.requestFileSystem (window.PERSISTENT, 10*1024*1024, fs => {
-                    console.log ('initialised filesystem : ' + fs);
                     this._fs = fs;
+                    this._fileLocation = cordova.file.applicationStorageDirectory + 'Library/files/';
+                    console.log ('initialised filesystem : ' + this._fileLocation);
                     resolve();
                   }, err => {
                     reject ('cannot get filesystem: ' + err);
@@ -314,6 +328,16 @@ export default class SFData {
     });
   }
 
+  get fileLocation() {
+    return this._fileLocation;
+  }
+  get mobileSDK() {
+    return this._cordovaReady;
+  }
+  get browserFileSystem() {
+    return this._gotChromeFileSystem;
+  }
+
   webReady(creds) {
     return new Promise( (resolve, reject) => {
       this._oauth = {authenticate: function(success) {
@@ -323,8 +347,10 @@ export default class SFData {
       this._smartSync = new MockSync(this._smartStore, this);
 
       window.webkitRequestFileSystem (window.TEMPORARY, 10*1024*1024, fs => {
-          console.log ('initialised filesystem : ' + JSON.stringify(fs));
+          this._gotChromeFileSystem = true;
           this._fs = fs;
+          this._fileLocation = 'filesystem:' + window.location.origin + '/temporary/';
+          console.log ('initialised filesystem : ' + this._fileLocation);
           resolve();
         }, err => {
           reject ('cannot get filesystem: ' + err);

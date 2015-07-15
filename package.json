@@ -15,7 +15,6 @@
     "webpack": "webpack --colors --progress --config ./webpack.config.js"
   },
   "devDependencies": {
-    "react": "*",
     "babel-core": "*",
     "babel-loader": "*",
     "babel-runtime": "*",
@@ -28,11 +27,13 @@
     "opn": "*",
     "postcss-loader": "^0.5.0",
     "progressbar.js": "^0.8.1",
+    "react": "*",
     "react-hot-loader": "*",
     "sass-loader": "^1.0.2",
     "style-loader": "*",
     "template-html-loader": "*",
     "transducers.js": "^0.3.2",
+    "velocity-animate": "^1.2.2",
     "webpack": "*",
     "webpack-dev-server": "*"
   }

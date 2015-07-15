@@ -3,3 +3,8 @@ React ES6 apps for salesforce
 based on https://github.com/badsyntax/react-seed
 
 (until avaiable on npm - extract into node_modules salesforce-design-system)
+
+
+
+cordova plugin add https://github.com/sitewaerts/cordova-plugin-document-viewer.git
+cordova plugin add cordova-plugin-file

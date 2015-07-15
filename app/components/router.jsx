@@ -51,10 +51,8 @@ export default class Router extends Component {
       Router.setupRouterfunction ( () => {
         var newComp = Router.getURLNav();
         console.log ('App url changed : ' + JSON.stringify(newComp));
-        //if (newComp !== this.state.renderThis) {
-        //this.props.updateRoute (newComp.hash);
-
         var cflt = newComp.params.cflt,
+            lbl = newComp.params.lbl,
             newBreadcrums = [];
 
         if (cflt && cflt !== 'TOP') {
@@ -67,17 +65,22 @@ export default class Router extends Component {
           if (foundit) {
               newBreadcrums = inhistory;
           } else {
-              newBreadcrums = this.state.breadcrumbs.concat({Id: cflt, Name: 'nav'});
+              newBreadcrums = this.state.breadcrumbs.concat({Id: cflt, Name: lbl});
           }
         }
         this.setState ({renderThis: newComp.hash, urlparam: newComp.params, breadcrumbs: newBreadcrums});
-        //};
       });
 
       var newComp = Router.getURLNav();
       console.log ('App Initial URL : ' + JSON.stringify(newComp));
       //this.props.updateRoute (newComp.hash);
       this.state =  {renderThis: newComp.hash, urlparam: newComp.params, breadcrumbs: []};
+    }
+
+    componentWillReceiveProps(nextProp) {
+      if (nextProp.forceRoute) {
+        this.state =  {renderThis: 'TileList', urlparam: {tstamp: nextProp.forceRoute}, breadcrumbs: []};
+      }
     }
 
     render() {

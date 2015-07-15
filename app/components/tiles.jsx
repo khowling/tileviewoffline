@@ -2,12 +2,16 @@ import React, {Component} from 'react/addons';
 import { range, seq, compose, map, filter } from 'transducers.js';
 import SFData from '../service/sfdata.es6';
 
+import Velocity from 'velocity-animate';
+import 'velocity-animate/velocity.ui';
+
 class Report extends Component {
     constructor () {
       super();
       console.log ('TileList InitialState : ');
       this.state = { open: false, quickview: []};
       this.handleCollapse = this.handleCollapse.bind(this);
+      this.navToReport = this.navToReport.bind(this);
     }
 
     handleCollapse  (event) {
@@ -66,32 +70,25 @@ class Report extends Component {
         }
     }
 
-    componentWillUpdate( nextProps,  nextState) {
-        console.log ('Report componentWillUpdate : state ' + JSON.stringify (nextState));
-        //Use this as an opportunity to perform preparation before an update occurs
-        // You cannot use this.setState() in this method
-
-    }
-
-    componentDidMount () {
-        console.log ('Report componentDidMount: ');
-    }
-
-    navToReport (id) {
-      var rdata = this.props.data.Report__r;
+    navToReport () {
+      var rdata = this.props.data.Report__r,
+          sf = SFData.instance,
+          localUrl = sf.fileLocation + rdata.Document_ID__c + '.pdf';
 
       if (rdata.Source__c === 'Salesforce') {
-        console.log ('hope its syncd to local filesystem: '+rdata.Document_ID__c);
-        window.open('filesystem:file:///persistent/'+rdata.Document_ID__c+'.pdf', '_blank');
-        //filesystem:https://localhost:8000/
-      } else {
-        console.log ('navToReport event : ' + id);
         try {
             console.log ('navToReport got sforce');
             sforce.one.navigateToSObject( id);
         }  catch (e) {
-            window.location =  '/apex/OVReport?id=' + id;
+
+          if (sf.mobileSDK) {
+            SitewaertsDocumentViewer.viewDocument(localUrl, 'application/pdf');
+          } else if (sf.browserFileSystem) {
+            window.open(localUrl, '_blank');
+          }
         }
+      } else {
+        alert ('file source tbc');
       }
     }
 
@@ -115,15 +112,9 @@ class Report extends Component {
                 "fa-arrow-up text-green": rdata.Actual__c >= rdata.Target__c,
                 "fa-arrow-down text-red": rdata.Actual__c < rdata.Target__c});
 
-        var chatp = {width: "55%"};
-
-        var rHref = '#';
-        if (rdata.Source__c === 'Salesforce') {
-          console.log ('hope its syncd to local filesystem: '+rdata.Document_ID__c);
-          rHref = 'cdvfile:///persistent/'+rdata.Document_ID__c+'.pdf';
-        }
+        //var chatp = {width: "55%"};
         return (
-            <div className="col-xs-12 col-sm-6 col-md-4 col-lg-3">
+            <div className="col-xs-12 col-sm-6 col-md-4 col-lg-3" style={{display: "none"}}>
 
                 <div className={boxclass}>
                     <div className="box-header" data-toggle="tooltip" title="" data-original-title="Header tooltip">
@@ -178,7 +169,7 @@ class Report extends Component {
                     </div>
                     <div className="box-footer" style={divStyleHidden}>
 
-                        <a className="btn-kh  btn-block btn-success" href={rHref} target="_blank">
+                        <a className="btn-kh  btn-block btn-success" onClick={this.navToReport}>
                             <i className="fa fa-play"></i> Open
                         </a>
                     </div>
@@ -207,8 +198,8 @@ class Tile extends Component {
             iclass = "ion " + tdata.Tile_Icon__c;
 
         return (
-            <div className="col-xs-12 col-sm-4 col-md-3 col-lg-2">
-                <a href={"#TileList?cflt="+tdata.Id}  className={boxclass}>
+            <div className="col-xs-12 col-sm-4 col-md-3 col-lg-2" style={{display: "none"}}>
+                <a href={"#TileList?cflt="+tdata.Id+"&lbl="+encodeURIComponent(tdata.Name)}  className={boxclass}>
                     <div className="inner">
                         <h3>  {tdata.tcnt}</h3>
                         <p>{tdata.Name}</p>
@@ -232,34 +223,6 @@ export default class TileList extends Component {
       console.log ('TileList constructor');
       this.state =  { breadcrumbs: [], tiles: [], ass_reports: [], loading: false, filter: null, funct: 'All' };
     }
-
-/*
-    componentWillReceiveProps (nextProps) {
-        let cbc = this.state.breadcrumbs,
-            cflt = nextProps.flt; //this.getParams().flt;
-        console.log ('TileList componentWillReceiveProps : ' + cflt);
-         if  (cflt == null) {
-            this.setState({breadcrumbs: []});
-         } else {
-             var foundit = false,
-                 inhistory = seq(cbc, filter(function(x) {
-                 if (foundit == false && x.id == cflt) {
-                     foundit = true; return foundit;
-                 } else return !foundit}));
-             if (foundit) {
-                 this.setState({breadcrumbs:inhistory});
-                 }
-             else {
-                 let newname = seq(this.state.tiles,
-                     compose(
-                         filter(x => x.Id == cflt),
-                         map(x => x.Name)
-                     ))[0]
-                 this.setState({breadcrumbs: this.state.breadcrumbs.concat({id: cflt, name: newname})});
-             }
-         }
-    }
-*/
 
     // Called automatically by Sync
     static shapeData (value) {
@@ -289,6 +252,12 @@ export default class TileList extends Component {
       return value;
     }
 
+    componentDidUpdate() {
+        Velocity.animate(
+          React.findDOMNode(this.refs.tiles).children,
+          "transition.slideLeftIn", { stagger: 50 });
+    }
+
     componentDidMount() {
       let sf = SFData.instance,
           level = this.props.cflt || 'TOP',
@@ -296,10 +265,10 @@ export default class TileList extends Component {
 
       console.log ('TileList componentDidMount ()');
       sf.queryLocal ('Tiles__c', ['Id', 'Name', 'Tile_Colour__c', 'Tile_Icon__c', 'Parent_Filter__c', 'Function__c'], [{field: 'Parent_Filter__c', equals: level}]).then ((value) => {
-        console.log ('queryLocal success value : ' + JSON.stringify(value));
+        //console.log ('queryLocal success value : ' + JSON.stringify(value));
         newState.tiles = value;
         if  (level == 'TOP') {
-          console.log ('TileList componentDidMount, setState : ' + JSON.stringify(newState));
+          //console.log ('TileList componentDidMount, setState : ' + JSON.stringify(newState));
           this.setState(newState);
         } else {
           // get Associated_Reports__r
@@ -307,7 +276,7 @@ export default class TileList extends Component {
             if (value[0].Associated_Reports__r) {
               newState.ass_reports = value[0].Associated_Reports__r.records;
             }
-            console.log ('TileList componentDidMount, setState : ' + JSON.stringify(newState));
+            //console.log ('TileList componentDidMount, setState : ' + JSON.stringify(newState));
             this.setState(newState);
           }, (err) => {
               console.log ('queryLocal ass reports error reason : ' + err);
@@ -333,10 +302,6 @@ export default class TileList extends Component {
         let tiles = seq(this.state.tiles,
             filter(x =>  this.state.funct == 'All' || x.Function__c == this.state.funct));
 
-        var optionalElement;
-        if (this.state.loading) {
-            optionalElement = (<div> loading </div>);
-        }
         var padding0 =  { padding: '0px' };
 
         var i = 0;
@@ -344,7 +309,7 @@ export default class TileList extends Component {
             <section className="content">
                 <div className="page-header-kh">
 
-                <div className="btn-group" style={{"margin-right": "10px"}}>
+                <div className="btn-group" style={{"marginRight": "10px"}}>
                   <button type="button" className="btn-kh btn-primary dropdown-toggle" data-toggle="dropdown" aria-expanded="false">
                     Function: {this.state.funct} <span className="caret"></span>
                   </button>
@@ -377,18 +342,17 @@ export default class TileList extends Component {
                     <ol className="breadcrumb" style={padding0}>
                         <li className="margin-0"><a href="#TileList?cflt=TOP" ><i className="fa fa-dashboard"></i> Home</a></li>
                         {this.props.breadcrumbs.map(function(rt, i) { return (
-                            <li className="active"><a href={"#TileList?cflt="+rt.Id} >{rt.Name}</a></li>
+                            <li className="active"><a href={"#TileList?cflt="+rt.Id+"&lbl="+encodeURIComponent(rt.Name)} >{rt.Name}</a></li>
                         );})}
                     </ol>
                 </div>
 
-                <div className="row">
-                    {optionalElement}
+                <div ref="tiles" className="row">
                     {tiles.map(function(row, i) { return (
-                        <Tile data={row} />
+                        <Tile key={row.Id} data={row} />
                     );})}
                     {this.state.ass_reports.map(function(row, i) { return (
-                        <Report data={row} />
+                        <Report key={row.Id} data={row} />
                     );})}
                 </div>
             </section>

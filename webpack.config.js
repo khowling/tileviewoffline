@@ -13,6 +13,8 @@ var port = pkg.config.devPort,
 
 var DEBUG = process.env.NODE_ENV === 'development';
 var TEST = process.env.NODE_ENV === 'test';
+var VISUALFORCE = process.env.BUILD_TARGET === 'visualforce';
+
 var jsBundle = path.join('js', util.format('[name].%s.js', pkg.version));
 var cssBundle = path.join('css', util.format('[name].%s.css', pkg.version));
 
@@ -70,7 +72,8 @@ var htmlLoader = fileLoader + '!' +
     'engine=lodash',
     'version=' + pkg.version,
     'title=' + pkg.name,
-    'debug=' + DEBUG,
+    'DEBUG=' + DEBUG,
+    'VISUALFORCE=' + VISUALFORCE,
     'AccessToken1="' + forceCreds[1] + '"',
     'AccessToken2="' + forceCreds[2] + '"'
   ].join('&')
