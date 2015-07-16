@@ -15,7 +15,8 @@ export default class SFData {
     }
     this._soups = soups;
     this._cordovaReady = false;
-    this._gotChromeFileSystem = false;
+    this._mockSync = false;
+    this._fileLocation = false;
     instance = this;
   }
 
@@ -59,11 +60,15 @@ export default class SFData {
           progressCallback({progress: 0, msg: this._soups[1].sObject});
           progressCallback({progress: 1, msg: this._soups[1].sObject});
           this.syncDownSoup (this._soups[1]).then ( (success) => {
-            this.syncFiles (progressCallback).then((success) => {
-                resolve();
-            }, function (fail) {
-              reject (fail);
-            });
+            if (this._fileLocation) {
+              this.syncFiles (progressCallback).then((success) => {
+                  resolve();
+              }, function (fail) {
+                reject (fail);
+              });
+            } else {
+              resolve();
+            }
           }, function (fail) {
             reject (fail);
           });
@@ -108,7 +113,7 @@ export default class SFData {
   }
 
   queryLocal(obj, fields , where) {
-    var promise = new Promise( (resolve, reject) => {
+    return new Promise( (resolve, reject) => {
 
       let qspec;
       let smartqsl = false;
@@ -160,7 +165,6 @@ export default class SFData {
       }
 
     });
-    return promise;
   }
 
   query(soql) {
@@ -334,27 +338,33 @@ export default class SFData {
   get mobileSDK() {
     return this._cordovaReady;
   }
-  get browserFileSystem() {
-    return this._gotChromeFileSystem;
+  get mockSync() {
+    return this._mockSync;
   }
 
-  webReady(creds) {
+  webReady(creds, mockSync) {
     return new Promise( (resolve, reject) => {
+
       this._oauth = {authenticate: function(success) {
         success ({instanceUrl: creds.host, accessToken: creds.session_api});
-      }}
+      }};
       this._smartStore = new MockStore(this._soups, window.localStorage);
       this._smartSync = new MockSync(this._smartStore, this);
 
-      window.webkitRequestFileSystem (window.TEMPORARY, 10*1024*1024, fs => {
-          this._gotChromeFileSystem = true;
-          this._fs = fs;
-          this._fileLocation = 'filesystem:' + window.location.origin + '/temporary/';
-          console.log ('initialised filesystem : ' + this._fileLocation);
-          resolve();
-        }, err => {
-          reject ('cannot get filesystem: ' + err);
-        });
+      if (mockSync) {
+        this._mockSync = true;
+        window.webkitRequestFileSystem (window.TEMPORARY, 10*1024*1024, fs => {
+            this._gotChromeFileSystem = true;
+            this._fs = fs;
+            this._fileLocation = 'filesystem:' + window.location.origin + '/temporary/';
+            console.log ('initialised filesystem : ' + this._fileLocation);
+            resolve();
+          }, err => {
+            reject ('cannot get filesystem: ' + err);
+          });
+      } else {
+        this.syncAll(x => console.log (x)).then(y => resolve());
+      }
     });
   }
 }

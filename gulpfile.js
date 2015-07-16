@@ -7,45 +7,12 @@ var rename = require('gulp-rename');
 var gulpif = require('gulp-if');
 var zip = require ("gulp-zip");
 var replace = require('gulp-replace');
-var headerfooter = require('gulp-headerfooter');
 var exec = require('child_process').exec;
-var webpack = require("webpack");
-var WebpackDevServer = require("webpack-dev-server");
-var webpackConfig = require("./webpack.config.js");
 
 
-
-gulp.task("webpack:build", function(callback) {
-    // modify some webpack config options
-    var myConfig = Object.create(webpackConfig);
-    myConfig.debug = false;
-    myConfig.devtool = null;
-    myConfig.entry = myConfig.entry[2];
-    myConfig.plugins = [
-        new webpack.DefinePlugin({
-            "process.env": {
-                // This has effect on the react lib size
-                "NODE_ENV": JSON.stringify("production")
-            }
-        }),
-        new webpack.optimize.DedupePlugin(),
-        new webpack.optimize.UglifyJsPlugin({
-            mangle: {
-                except: ['GeneratorFunction', 'GeneratorFunctionPrototype']
-            }
-        }),
-        new webpack.optimize.OccurenceOrderPlugin()
-    ];
-
-    // run webpack
-    webpack(myConfig, function(err, stats) {
-        if(err) throw new gutil.PluginError("webpack:build", err);
-        gutil.log("[webpack:build]", stats.toString({
-            colors: true
-        }));
-        callback();
-    });
-});
+var pkg = require('./package.json');
+var buildDir = pkg.config.buildDir,
+    pageName = pkg.name + (pkg.version.replace(new RegExp('\\.', 'g'), ''));
 
 function string_src(filename, string) {
     var src = require('stream').Readable({ objectMode: true })
@@ -76,10 +43,10 @@ gulp.task ("package:meta", function() {
 var statictasks = [];
 [
     {name: "Bower", src: 'bower_components/**/*'},
-    {name: "App", src: ['static/css/*', 'static/output/*', 'static/images/*']}
+    {name: pageName, src: [buildDir+'/**/*']}
 ].forEach(function(sr) {
     statictasks.push(sr.name + ":res");
-    gulp.task (sr.name + ":res", ["webpack:build"], function() {
+    gulp.task (sr.name + ":res", ["webpack:visualforce"], function() {
         return gulp.src(sr.src)
             .pipe(zip(sr.name+".resource"))
             .pipe(gulp.dest ('./metadata/staticresources'));
@@ -96,38 +63,37 @@ var statictasks = [];
     });
 });
 
-var page = {name: "myreact1", src: "index.html", dest: "./metadata/pages"};
-
 gulp.task ("page:meta", function() {
-    return string_src(page.name+".page-meta.xml",
+    return string_src(pageName+".page-meta.xml",
         '<?xml version="1.0" encoding="UTF-8"?>\n'+
         '<ApexPage xmlns="http://soap.sforce.com/2006/04/metadata">\n'+
         '    <apiVersion>32.0</apiVersion>\n'+
         '    <availableInTouch>true</availableInTouch>\n'+
         '    <confirmationTokenRequired>false</confirmationTokenRequired>\n'+
-        '    <label>'+page.name+'</label>\n'+
+        '    <label>'+pageName+'</label>\n'+
         '</ApexPage>')
-        .pipe(gulp.dest(page.dest))
+        .pipe(gulp.dest("./metadata/pages"))
 });
 
-gulp.task ("page:vf", function() {
-    return gulp.src([page.src])
-        .pipe(replace(/(href|src)="\/bower_components\/([^"]*)\"/g, '$1=\"{!URLFOR($Resource.Bower, \'$2\')}\"'))
-        .pipe(replace(/(href|src)="\/output\/([^"]*)\"/g, '$1=\"{!URLFOR($Resource.App, \'$2\')}\"'))
-        .pipe(rename(page.name+".page"))
-        .pipe(gulp.dest (page.dest));
+gulp.task ("page:vf", ["webpack:visualforce"], function() {
+    return gulp.src([buildDir+"/index.html"])
+        .pipe(replace(/(href|src)="bower_components\/([^"]*)\"/g, '$1=\"{!URLFOR($Resource.Bower, \'$2\')}\"'))
+        .pipe(replace(/(href|src)="((js|css)\/[^"]*)\"/g, '$1=\"{!URLFOR($Resource.'+pageName+', \'$2\')}\"'))
+        .pipe(rename(pageName+".page"))
+        .pipe(gulp.dest ("./metadata/pages"));
 });
 
-gulp.task('webpack:force', function() {
-  exec('NODE_ENV=production npm run webpack', function (err, stdout, stderr) {
-      console.log(stdout);
-      console.log(stderr);
+gulp.task('webpack:visualforce', function(cb) {
+  return exec('npm run webpack', {shell: process.env.SHELL, env: {PATH: process.env.PATH, HOME: process.env.HOME, NODE_ENV:"test", BUILD_TARGET: "visualforce"}}, function (err, stdout, stderr) {
+      if (stdout) console.log('out : ' + stdout);
+      if (stderr) console.log('err : ' +stderr);
+      cb(err);
   });
 });
 
-gulp.task('force:import', ["webpack:force", "package:meta", "page:meta", "page:vf"].concat(statictasks), function () {
+gulp.task('force:import', ["webpack:visualforce", "package:meta", "page:meta", "page:vf"].concat(statictasks), function () {
     exec('force import', function (err, stdout, stderr) {
-        console.log(stdout);
-        console.log(stderr);
+      if (stdout) console.log('out : ' + stdout);
+      if (stderr) console.log('err : ' +stderr);
     });
 })

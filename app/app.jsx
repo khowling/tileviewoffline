@@ -3,6 +3,8 @@
 import './index.html';
 import 'babel-core/polyfill';
 
+import './css/site.css';
+
 import React, {Component} from 'react';
 import SFData from './service/sfdata.es6';
 import Router from './components/router.jsx';
@@ -62,8 +64,8 @@ class App extends Component {
     };
 
     if (this.props.sfdccreds) {
-      this.setState ({ bootmsg:  'got localhost'});
-      this.sfd.webReady(this.props.sfdccreds).then (() => {
+      this.setState ({ bootmsg:  'loading data....'});
+      this.sfd.webReady(this.props.sfdccreds, this.props.mockSync).then (() => {
           this.setState ({ booted: true, bootmsg: 'local ready'});
         }, (error) => {
             this.setState ({ bootmsg: 'error ' + error});
@@ -83,7 +85,9 @@ class App extends Component {
     if (this.state.booted) {
       return (
         <div>
+          { ( this.sfd.mobileSDK || this.sfd.mockSync) &&
           <SyncProgress sfd={this.sfd} doneRefresh={this.doneRefresh.bind(this)}/>
+          }
           <Router componentFactories={this.routeFactories} forceRoute={this.state.forceRoute}/>
         </div>
       );
@@ -97,6 +101,6 @@ document.addEventListener('deviceready', function() {
       React.render(<App cordova={window.cordova}/>,  document.getElementById('app'));
 });
 
-if (window.location.href.indexOf ('localhost') >0) {
-    React.render(<App sfdccreds={_sfdccreds}/>,  document.getElementById('app'));
+if (window.location.href.indexOf ('localhost') >0 || window.location.href.indexOf ('salesforce.com') >0) {
+    React.render(<App sfdccreds={_sfdccreds} mockSync={true && (window.location.href.indexOf ('localhost') >0)}/>,  document.getElementById('app'));
 }

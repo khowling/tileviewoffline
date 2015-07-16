@@ -1,9 +1,10 @@
 <% if (VISUALFORCE) { %>
-<apex:page applyHtmlTag="true" showHeader="true">
+<apex:page applyHtmlTag="true" applyBodyTag="false" showHeader="false" standardStylesheets="false">
 <% } else { %>
 <!DOCTYPE html>
-<% } %>
 <html lang="en">
+<% } %>
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width" />
@@ -42,49 +43,6 @@
         };
 
   </script>
-  <style>
-    .wdth-l { width: 50%; }
-    .wdth-m { width: 35%; }
-    .wdth-s { width: 15%; }
-    .publishercontainer {
-        box-sizing: content-box !important;
-    }
-    body {
-        font-size: 12px;
-        font-family: Arial, Helvetica, sans-serif;
-    }
-    img {
-        max-width:none !important;
-    }
-    .btn-kh {
-        display: inline-block;
-        padding: 6px 12px;
-        margin-bottom: 0;
-        font-size: 14px;
-        font-weight: 400;
-        line-height: 1.42857143;
-        text-align: center;
-        white-space: nowrap;
-        vertical-align: middle;
-        -ms-touch-action: manipulation;
-        touch-action: manipulation;
-        cursor: pointer;
-        -webkit-user-select: none;
-        -moz-user-select: none;
-        -ms-user-select: none;
-        user-select: none;
-        background-image: none;
-        border: 1px solid transparent;
-        border-radius: 4px;
-    }
-    .margin-0 {
-      margin-left: 0px;
-    }
-    .page-header-kh {
-      font-size: 20px;
-    }
-</style>
-
 </head>
 <body>
   <div id="app"></div>
@@ -112,8 +70,11 @@
   <!-- Bootstrap WYSIHTML5 -->
   <script src="bower_components/adminlte/js/plugins/bootstrap-wysihtml5/bootstrap3-wysihtml5.all.min.js" type="text/javascript"></script>
 
+  <script src="/canvas/sdk/js/32.0/canvas-all.js" type="text/javascript"></script>
 </body>
-</html>
+
 <% if (VISUALFORCE) { %>
 </apex:page >
+<% } else { %>
+</html>
 <% } %>

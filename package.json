@@ -1,6 +1,6 @@
 {
-  "name": "unilever-ami",
-  "version": "0.0.1",
+  "name": "oneview",
+  "version": "0.0.8",
   "description": "AMI using ES6 & webpack.",
   "config": {
     "buildDir": "./build",
@@ -21,6 +21,13 @@
     "css-loader": "^0.15.1",
     "extract-text-webpack-plugin": "^0.8.2",
     "file-loader": "*",
+    "gulp": "^3.9.0",
+    "gulp-babel": "^5.1.0",
+    "gulp-if": "^1.2.5",
+    "gulp-rename": "^1.2.2",
+    "gulp-replace": "^0.5.3",
+    "gulp-util": "^3.0.6",
+    "gulp-zip": "^3.0.2",
     "html-loader": "*",
     "lodash": "*",
     "node-sass": "^3.2.0",

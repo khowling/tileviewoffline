@@ -78,13 +78,15 @@ class Report extends Component {
       if (rdata.Source__c === 'Salesforce') {
         try {
             console.log ('navToReport got sforce');
-            sforce.one.navigateToSObject( id);
+            sforce.one.navigateToSObject( rdata.Document_ID__c);
         }  catch (e) {
 
           if (sf.mobileSDK) {
             SitewaertsDocumentViewer.viewDocument(localUrl, 'application/pdf');
-          } else if (sf.browserFileSystem) {
+          } else if (sf.mockSync) {
             window.open(localUrl, '_blank');
+          } else {
+            window.open('/' + rdata.Document_ID__c);
           }
         }
       } else {
@@ -95,6 +97,9 @@ class Report extends Component {
     render () {
         console.log ('Report render : ');
         var rdata = this.props.data.Report__r;
+
+        let sf = SFData.instance,
+            displayAnim = sf.mobileSDK && {display: 'none'} || {};
 
         var divStyleHidden =  this.state.open == false && { display: 'none' } || {};
         var cx = React.addons.classSet,
@@ -114,7 +119,7 @@ class Report extends Component {
 
         //var chatp = {width: "55%"};
         return (
-            <div className="col-xs-12 col-sm-6 col-md-4 col-lg-3" style={{display: "none"}}>
+            <div className="col-xs-12 col-sm-6 col-md-4 col-lg-3" style={displayAnim}>
 
                 <div className={boxclass}>
                     <div className="box-header" data-toggle="tooltip" title="" data-original-title="Header tooltip">
@@ -193,12 +198,16 @@ class Tile extends Component {
     }
 
     render () {
-        var tdata = this.props.data,
-            boxclass = "small-box " + tdata.Tile_Colour__c,
-            iclass = "ion " + tdata.Tile_Icon__c;
 
-        return (
-            <div className="col-xs-12 col-sm-4 col-md-3 col-lg-2" style={{display: "none"}}>
+      let sf = SFData.instance,
+          displayAnim = sf.mobileSDK && {display: 'none'} || {};
+
+      var tdata = this.props.data,
+          boxclass = "small-box " + tdata.Tile_Colour__c,
+          iclass = "ion " + tdata.Tile_Icon__c;
+
+      return (
+            <div className="col-xs-12 col-sm-4 col-md-3 col-lg-2" style={displayAnim}>
                 <a href={"#TileList?cflt="+tdata.Id+"&lbl="+encodeURIComponent(tdata.Name)}  className={boxclass}>
                     <div className="inner">
                         <h3>  {tdata.tcnt}</h3>
@@ -253,9 +262,12 @@ export default class TileList extends Component {
     }
 
     componentDidUpdate() {
+      let sf = SFData.instance;
+      if (!sf.mobileSDK) {
         Velocity.animate(
           React.findDOMNode(this.refs.tiles).children,
           "transition.slideLeftIn", { stagger: 50 });
+        }
     }
 
     componentDidMount() {
