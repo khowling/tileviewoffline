@@ -263,7 +263,7 @@ export default class TileList extends Component {
 
     componentDidUpdate() {
       let sf = SFData.instance;
-      if (!sf.mobileSDK) {
+      if (sf.mobileSDK) {
         Velocity.animate(
           React.findDOMNode(this.refs.tiles).children,
           "transition.slideLeftIn", { stagger: 50 });
